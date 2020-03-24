@@ -1,0 +1,17 @@
+#!/bin/bash
+# Sets up handy aliases for ceph.
+ceph() {
+  sudo docker exec -it ceph-mon-{{ ansible_hostname }} ceph --cluster {{ cluster }} ${@}
+}
+
+radosgw-admin() {
+  sudo docker exec -it ceph-mon-{{ ansible_hostname }} radosgw-admin --cluster {{ cluster }} ${@}
+}
+
+rados() {
+  sudo docker exec -it ceph-mon-{{ ansible_hostname }} rados --cluster {{ cluster }} ${@}
+}
+
+rbd() {
+  sudo docker exec -it ceph-mon-{{ ansible_hostname }} rbd --cluster {{ cluster }} ${@}
+}

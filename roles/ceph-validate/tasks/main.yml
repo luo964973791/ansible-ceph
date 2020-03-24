@@ -1,0 +1,223 @@
+---
+- name: validate repository variables in non-containerized scenario
+  when: not containerized_deployment | bool
+  block:
+    - name: validate ceph_origin
+      fail:
+        msg: "ceph_origin must be either 'repository', 'distro' or 'local'"
+      when: ceph_origin not in ['repository', 'distro', 'local']
+
+    - name: validate ceph_repository
+      fail:
+        msg: "ceph_repository must be either 'community', 'rhcs', 'dev', 'custom' or 'uca'"
+      when:
+        - ceph_origin == 'repository'
+        - ceph_repository not in ['community', 'rhcs', 'dev', 'custom', 'uca']
+
+    - name: validate ceph_repository_community
+      fail:
+        msg: "ceph_stable_release must be either 'luminous' or 'mimic'"
+      when:
+        - ceph_origin == 'repository'
+        - ceph_repository == 'community'
+        - ceph_stable_release not in ['luminous', 'mimic']
+
+    - name: validate ceph_repository_type
+      fail:
+        msg: "ceph_repository_type must be either 'cdn' or 'iso'"
+      when:
+        - ceph_origin == 'repository'
+        - ceph_repository == 'rhcs'
+        - ceph_repository_type not in ['cdn', 'iso']
+
+- name: validate osd_objectstore
+  fail:
+    msg: "osd_objectstore must be either 'bluestore' or 'filestore'"
+  when: osd_objectstore not in ['bluestore', 'filestore']
+
+- name: validate monitor network configuration
+  fail:
+    msg: "Either monitor_address, monitor_address_block or monitor_interface must be provided"
+  when:
+    - mon_group_name in group_names
+    - monitor_address == 'x.x.x.x'
+    - monitor_address_block == 'subnet'
+    - monitor_interface == 'interface'
+
+- name: validate radosgw network configuration
+  fail:
+    msg: "Either radosgw_address, radosgw_address_block or radosgw_interface must be provided"
+  when:
+    - rgw_group_name in group_names
+    - radosgw_address == 'x.x.x.x'
+    - radosgw_address_block == 'subnet'
+    - radosgw_interface == 'interface'
+
+- name: validate osd nodes
+  when: osd_group_name in group_names
+  block:
+    - name: validate osd_scenario
+      fail:
+        msg: "osd_scenario must be set to 'collocated', 'non-collocated' or 'lvm'"
+      when: osd_scenario is undefined or osd_scenario not in ["collocated", "non-collocated", "lvm"]
+
+    - name: validate collocated osd scenario
+      fail:
+        msg: 'devices must be defined for collocated osd scenario'
+      when:
+        - osd_scenario == 'collocated'
+        - not osd_auto_discovery | default(false) | bool
+        - devices is undefined
+
+    - name: validate non-collocated osd scenario
+      fail:
+        msg: 'devices and dedicated_devices must be defined for non-collocated osd scenario'
+      when:
+        - osd_scenario == 'non-collocated'
+        - devices is undefined or dedicated_devices is undefined
+
+    - name: validate lvm osd scenario
+      fail:
+        msg: 'devices or lvm_volumes must be defined for lvm osd scenario'
+      when:
+        - osd_scenario == 'lvm'
+        - not osd_auto_discovery | default(false) | bool
+        - devices is undefined
+        - lvm_volumes is undefined
+
+    - name: validate filestore lvm osd scenario
+      fail:
+        msg: 'data and journal keys must be defined in lvm_volumes'
+      when:
+        - osd_scenario == 'lvm'
+        - osd_objectstore == 'filestore'
+        - not osd_auto_discovery | default(false) | bool
+        - lvm_volumes is defined
+        - lvm_volumes | length > 0
+        - item.data is undefined or item.journal is undefined
+      with_items: '{{ lvm_volumes }}'
+
+    - name: validate bluestore lvm osd scenario
+      fail:
+        msg: 'data key must be defined in lvm_volumes'
+      when:
+        - osd_scenario == 'lvm'
+        - osd_objectstore == 'bluestore'
+        - not osd_auto_discovery | default(false) | bool
+        - lvm_volumes is defined
+        - lvm_volumes | length > 0
+        - item.data is undefined
+      with_items: '{{ lvm_volumes }}'
+
+- name: warning deprecation for fqdn configuration
+  fail:
+    msg: "fqdn configuration is not supported anymore. Use 'use_fqdn_yes_i_am_sure: true' if you really want to use it. See release notes for more details"
+  when:
+    - mon_use_fqdn or mds_use_fqdn
+    - not use_fqdn_yes_i_am_sure
+
+- name: fail if local scenario is enabled on debian
+  fail:
+    msg: "'local' installation scenario not supported on Debian systems"
+  when:
+    - ansible_os_family == 'Debian'
+    - ceph_origin == 'local'
+
+- name: verify that ceph_rhcs_cdn_debian_repo url is valid for red hat storage
+  fail:
+    msg: "ceph_rhcs_cdn_debian_repo url is invalid, please set your customername:customerpasswd"
+  when:
+    - ceph_origin == 'repository'
+    - ceph_repository == 'rhcs'
+    - ceph_repository_type == 'cdn'
+    - ansible_os_family == 'Debian'
+    - ceph_rhcs_cdn_debian_repo == 'https://customername:customerpasswd@rhcs.download.redhat.com'
+    - ceph_repository not in ['rhcs', 'dev', 'obs']
+
+- name: validate ntp daemon type
+  fail:
+    msg: "ntp_daemon_type must be one of chronyd, ntpd, or timesyncd"
+  when:
+    - ntp_service_enabled
+    - ntp_daemon_type not in ['chronyd', 'ntpd', 'timesyncd']
+
+# Since NTPd can not be installed on Atomic...
+- name: abort if ntp_daemon_type is ntp on Atomic
+  fail:
+    msg: installation can't happen on Atomic and ntpd needs to be installed
+  when:
+    - is_atomic
+    - ansible_os_family == 'RedHat'
+    - ntp_daemon_type == 'ntpd'
+
+- name: make sure journal_size configured
+  debug:
+    msg: "WARNING: journal_size is configured to {{ journal_size }}, which is less than 5GB. This is not recommended and can lead to severe issues."
+  when:
+    - journal_size|int < 5120
+    - osd_objectstore == 'filestore'
+    - osd_group_name in group_names
+
+- name: fail if no mgr host is present in the inventory
+  fail:
+    msg: "Please add a mgr host to your inventory."
+  when:
+    - groups.get(mon_group_name, []) | length > 0
+    - groups.get(mgr_group_name, []) | length == 0
+
+- name: include check_system.yml
+  include_tasks: check_system.yml
+
+- name: include check_devices.yml
+  include_tasks: check_devices.yml
+  when:
+    - osd_group_name in group_names
+    - not osd_auto_discovery | default(False)
+
+- name: include check_eth_mon.yml
+  include_tasks: check_eth_mon.yml
+  when:
+    - mon_group_name in group_names
+    - monitor_interface != "dummy"
+    - monitor_address == "x.x.x.x"
+    - monitor_address_block == "subnet"
+
+- name: include check_ipaddr_mon.yml
+  include_tasks: check_ipaddr_mon.yml
+  when:
+    - mon_group_name in group_names
+    - monitor_interface == "interface"
+    - monitor_address == "x.x.x.x"
+    - monitor_address_block != "subnet"
+
+- name: include check_eth_rgw.yml
+  include_tasks: check_eth_rgw.yml
+  when:
+    - rgw_group_name in group_names
+    - radosgw_interface != "dummy"
+    - radosgw_address == "x.x.x.x"
+    - radosgw_address_block == "subnet"
+
+- name: include check_rgw_multisite.yml
+  include_tasks: check_rgw_multisite.yml
+  when:
+    - inventory_hostname in groups.get(rgw_group_name, [])
+    - rgw_multisite
+
+- name: include check_iscsi.yml
+  include_tasks: check_iscsi.yml
+  when:
+    - iscsi_gw_group_name in group_names
+
+- name: warn about radosgw_civetweb_num_threads option deprecation
+  debug:
+    msg: "WARNING: radosgw_civetweb_num_threads variable is deprecated. Please use radosgw_thread_pool_size instead"
+  when:
+    - radosgw_frontend_type == 'civetweb'
+    - radosgw_civetweb_num_threads is defined
+
+- name: include check_rbdmirror.yml
+  include_tasks: check_rbdmirror.yml
+  when:
+    - rbdmirror_group_name in group_names
+    - ceph_rbd_mirror_configure | default(false) | bool
