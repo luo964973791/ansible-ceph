@@ -62,57 +62,8 @@ generate_fsid: false
 public_network: "10.0.0.0/24"
 cluster_network: "10.0.0.0/24"
 monitor_interface: eth0
+journal_size: 1024
 radosgw_interface: eth0
-cephx: true
-ceph_conf_overrides:
-    global:
-      rbd_default_features: 7
-      auth cluster required: cephx
-      auth service required: cephx
-      auth client required: cephx
-      osd journal size: 2048
-      osd pool default size: 3
-      osd pool default min size: 1
-      mon_pg_warn_max_per_osd: 1024
-      osd pool default pg num: 128
-      osd pool default pgp num: 128
-      max open files: 131072
-      osd_deep_scrub_randomize_ratio: 0.01
-
-    mgr:
-      mgr modules: dashboard
-
-    mon:
-      mon_allow_pool_delete: true
-
-    client:
-      rbd_cache: true
-      rbd_cache_size: 335544320
-      rbd_cache_max_dirty: 134217728
-      rbd_cache_max_dirty_age: 10
-
-    osd:
-      osd mkfs type: xfs
-    # osd mount options xfs: "rw,noexec,nodev,noatime,nodiratime,nobarrier"
-      ms_bind_port_max: 7100
-      osd_client_message_size_cap: 2147483648
-      osd_crush_update_on_start: true
-      osd_deep_scrub_stride: 131072
-      osd_disk_threads: 4
-      osd_map_cache_bl_size: 128
-      osd_max_object_name_len: 256
-      osd_max_object_namespace_len: 64
-      osd_max_write_size: 1024
-      osd_op_threads: 8
-
-      osd_recovery_op_priority: 1
-      osd_recovery_max_active: 1
-      osd_recovery_max_single_start: 1
-      osd_recovery_max_chunk: 1048576
-      osd_recovery_threads: 1
-      osd_max_backfills: 4
-      osd_scrub_begin_hour: 23
-      osd_scrub_end_hour: 7
 ```
 
 ### 挂载点
