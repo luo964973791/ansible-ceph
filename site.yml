@@ -9,7 +9,7 @@
 #  - nfss
 #  - restapis
 #  - rbdmirrors
-  - clients
+#  - clients
   - mgrs
 #  - iscsigws
 #  - iscsi-gws # for backward compatibility only!
