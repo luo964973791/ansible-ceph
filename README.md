@@ -3,8 +3,8 @@
 ```javascript
 yum install python-pip -y
 cd  /root && git clone https://github.com/ceph/ceph-ansible.git
-git checkout stable-3.2
-cd ceph-ansible && pip install -r requirements.txt
+cd /root/ceph-ansible && git checkout stable-3.2
+cd /root/ceph-ansible && pip install -r requirements.txt
 ```
 
 ### 准备hosts文件
