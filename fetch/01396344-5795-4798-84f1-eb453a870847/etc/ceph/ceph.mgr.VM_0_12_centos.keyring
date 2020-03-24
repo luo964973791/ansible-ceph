@@ -1,0 +1,5 @@
+[mgr.VM_0_12_centos]
+	key = AQAzmXleAAAAABAAmjxlUHf/ZTnjRJCzAHhsEw==
+	caps mds = "allow *"
+	caps mon = "allow profile mgr"
+	caps osd = "allow *"

@@ -145,7 +145,7 @@ def exec_commands(module, cmd_list):
     Creates Ceph commands
     '''
     for cmd in cmd_list:
-        rc, out, err = module.run_command(cmd)
+        rc, out, err = module.run_command(cmd, encoding=None)
     return rc, cmd, out, err
 
 
@@ -193,8 +193,8 @@ def run_module():
         end=str(endd),
         delta=str(delta),
         rc=rc,
-        stdout=out.rstrip("\r\n"),
-        stderr=err.rstrip("\r\n"),
+        stdout=out.rstrip(b"\r\n"),
+        stderr=err.rstrip(b"\r\n"),
         changed=True,
     )
 

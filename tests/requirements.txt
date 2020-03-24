@@ -1,8 +1,8 @@
 # These are Python requirements needed to run the functional tests
-six==1.10.0
-testinfra==1.19.0
-pytest-xdist==1.27.0
+# testinfra < 1.7.1 does not work Ansible 2.4, see https://github.com/philpep/testinfra/issues/249
+testinfra==1.7.1
+pytest-xdist
 pytest==3.6.1
-ansible~=2.6,<2.7
+notario>=0.0.13
+ansible~=2.4,<2.5
 netaddr
-mock

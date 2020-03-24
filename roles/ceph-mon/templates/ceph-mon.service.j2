@@ -5,10 +5,10 @@ After=docker.service
 [Service]
 EnvironmentFile=-/etc/environment
 ExecStartPre=-/usr/bin/docker rm ceph-mon-%i
-ExecStartPre=/bin/sh -c '"$(command -v mkdir)" -p /etc/ceph /var/lib/ceph/mon'
+ExecStartPre=$(command -v mkdir) -p /etc/ceph /var/lib/ceph/mon
 ExecStart=/usr/bin/docker run --rm --name ceph-mon-%i \
   --memory={{ ceph_mon_docker_memory_limit }} \
-{% if ceph_docker_version.split('.')[0] is version_compare('13', '>=') -%}
+{% if ceph_docker_version.split('.')[0] | version_compare('13', '>=') -%}
   --cpus={{ ceph_mon_docker_cpu_limit }} \
 {% else -%}
   --cpu-quota={{ ceph_mon_docker_cpu_limit * 100000 }} \
@@ -34,9 +34,9 @@ ExecStart=/usr/bin/docker run --rm --name ceph-mon-%i \
     {% if ip_version == 'ipv4' -%}
   -e MON_IP={{ hostvars[inventory_hostname]['ansible_all_' + ip_version + '_addresses'] | ipaddr(monitor_address_block) | first }} \
     {% elif ip_version == 'ipv6' -%}
-  -e MON_IP=[{{ hostvars[inventory_hostname]['ansible_all_' + ip_version + '_addresses'] | ipaddr(monitor_address_block) | last }}] \
+  -e MON_IP=[{{ hostvars[inventory_hostname]['ansible_all_' + ip_version + '_addresses'] | ipaddr(monitor_address_block) | first }}] \
     {% endif -%}
-{% elif hostvars[inventory_hostname]['monitor_address'] is defined and hostvars[inventory_hostname]['monitor_address'] != 'x.x.x.x' %}
+{% elif hostvars[inventory_hostname]['monitor_address'] is defined and hostvars[inventory_hostname]['monitor_address'] != '0.0.0.0' %}
     {% if ip_version == 'ipv4' -%}
   -e MON_IP={{ hostvars[inventory_hostname]['monitor_address'] }} \
     {% elif ip_version == 'ipv6' -%}

@@ -22,7 +22,6 @@ ceph_rbd_mirror_local_user: "admin"
 
 ceph_rbd_mirror_configure: false
 ceph_rbd_mirror_pool: ""
-ceph_rbd_mirror_mode: pool
 
 # NOTE (leseb): the following variable needs the name of the remote cluster.
 # The name of this cluster must be different than your local cluster simply
@@ -42,9 +41,9 @@ ceph_rbd_mirror_remote_user: ""
 
 # Resource limitation
 # For the whole list of limits you can apply see: docs.docker.com/engine/admin/resource_constraints
-# Default values are based from: https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/3/html/red_hat_ceph_storage_hardware_selection_guide/ceph-hardware-min-recommend
+# Default values are based from: https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/2/html/red_hat_ceph_storage_hardware_guide/minimum_recommendations
 # These options can be passed using the 'ceph_rbd_mirror_docker_extra_env' variable.
-ceph_rbd_mirror_docker_memory_limit: "{{ ansible_memtotal_mb }}m"
+ceph_rbd_mirror_docker_memory_limit: 1g
 ceph_rbd_mirror_docker_cpu_limit: 1
 
 ceph_rbd_mirror_docker_extra_env:

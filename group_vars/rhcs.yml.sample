@@ -28,7 +28,6 @@ dummy:
 #  luminous: 12
 #  mimic: 13
 #  nautilus: 14
-#  dev: 99
 
 # Directory to fetch cluster fsid, keys etc...
 fetch_directory: ~/ceph-ansible-keys
@@ -56,14 +55,19 @@ fetch_directory: ~/ceph-ansible-keys
 #iscsi_gw_group_name: iscsigws
 #mgr_group_name: mgrs
 
+# If check_firewall is true, then ansible will try to determine if the
+# Ceph ports are blocked by a firewall. If the machine running ansible
+# cannot reach the Ceph ports for some other reason, you may need or
+# want to set this to False to skip those checks.
+#check_firewall: False
+
 # If configure_firewall is true, then ansible will try to configure the
 # appropriate firewalling rules so that Ceph daemons can communicate
 # with each others.
-#configure_firewall: True
+#configure_firewall: False
 
 # Open ports on corresponding nodes if firewall is installed on it
 #ceph_mon_firewall_zone: public
-#ceph_mgr_firewall_zone: public
 #ceph_osd_firewall_zone: public
 #ceph_rgw_firewall_zone: public
 #ceph_mds_firewall_zone: public
@@ -72,41 +76,38 @@ fetch_directory: ~/ceph-ansible-keys
 #ceph_rbdmirror_firewall_zone: public
 #ceph_iscsi_firewall_zone: public
 
-# Generate local ceph.conf in fetch directory
-#ceph_conf_local: false
 
 ############
 # PACKAGES #
 ############
 #debian_package_dependencies:
 #  - python-pycurl
+#  - hdparm
 
 #centos_package_dependencies:
 #  - python-pycurl
+#  - hdparm
 #  - epel-release
 #  - python-setuptools
 #  - libselinux-python
 
 #redhat_package_dependencies:
 #  - python-pycurl
+#  - hdparm
 #  - python-setuptools
 
 #suse_package_dependencies:
 #  - python-pycurl
 #  - python-xml
+#  - hdparm
 #  - python-setuptools
 
 # Whether or not to install the ceph-test package.
 #ceph_test: false
 
-# Enable the ntp service by default to avoid clock skew on ceph nodes
-# Disable if an appropriate NTP client is already installed and configured
+# Enable the ntp service by default to avoid clock skew on
+# ceph nodes
 #ntp_service_enabled: true
-
-# Set type of NTP client daemon to use, valid entries are chronyd, ntpd or timesyncd
-# Note that this selection is currently ignored on containerized deployments
-#ntp_daemon_type: chronyd
-
 
 # Set uid/gid to default '64045' for bootstrap directories.
 # '64045' is used for debian based distros. It must be set to 167 in case of rhel based distros.
@@ -161,7 +162,7 @@ ceph_repository: rhcs
 #ceph_stable_repo: "{{ ceph_mirror }}/debian-{{ ceph_stable_release }}"
 
 #nfs_ganesha_stable: true # use stable repos for nfs-ganesha
-#nfs_ganesha_stable_branch: V2.7-stable
+#nfs_ganesha_stable_branch: V2.6-stable
 #nfs_ganesha_stable_deb_repo: "{{ ceph_mirror }}/nfs-ganesha/deb-{{ nfs_ganesha_stable_branch }}/{{ ceph_stable_release }}"
 
 
@@ -213,8 +214,8 @@ ceph_rhcs_version: 3
 #
 #
 #ceph_stable_repo_uca: "http://ubuntu-cloud.archive.canonical.com/ubuntu"
-#ceph_stable_openstack_release_uca: queens
-#ceph_stable_release_uca: "{{ ansible_lsb.codename }}-updates/{{ ceph_stable_openstack_release_uca }}"
+#ceph_stable_openstack_release_uca: liberty
+#ceph_stable_release_uca: "{{ansible_lsb.codename}}-updates/{{ceph_stable_openstack_release_uca}}"
 
 # REPOSITORY: openSUSE OBS
 #
@@ -286,9 +287,6 @@ ceph_rhcs_version: 3
 
 #ceph_conf_key_directory: /etc/ceph
 
-# Permissions for keyring files in /etc/ceph
-#ceph_keyring_permissions: '0600'
-
 #cephx: true
 
 ## Client options
@@ -340,7 +338,7 @@ ceph_rhcs_version: 3
 # Eg. If you want to specify for each monitor which address the monitor will bind to you can set it in your **inventory host file** by using 'monitor_address' variable.
 # Preference will go to monitor_address if both monitor_address and monitor_interface are defined.
 #monitor_interface: interface
-#monitor_address: x.x.x.x
+#monitor_address: 0.0.0.0
 #monitor_address_block: subnet
 # set to either ipv4 or ipv6, whichever your network is using
 #ip_version: ipv4
@@ -354,26 +352,18 @@ ceph_rhcs_version: 3
 #cephfs_metadata: cephfs_metadata # name of the metadata pool for a given filesystem
 
 #cephfs_pools:
-#  - { name: "{{ cephfs_data }}", pgs: "{{ osd_pool_default_pg_num }}", size: "{{ osd_pool_default_size }}" }
-#  - { name: "{{ cephfs_metadata }}", pgs: "{{ osd_pool_default_pg_num }}", size: "{{ osd_pool_default_size }}" }
+#  - { name: "{{ cephfs_data }}", pgs: "{{ hostvars[groups[mon_group_name][0]]['osd_pool_default_pg_num'] }}" }
+#  - { name: "{{ cephfs_metadata }}", pgs: "{{ hostvars[groups[mon_group_name][0]]['osd_pool_default_pg_num'] }}" }
 
 ## OSD options
 #
-#is_hci: false
-#hci_safety_factor: 0.2
-#non_hci_safety_factor: 0.7
-#osd_memory_target: 4294967296
 #journal_size: 5120 # OSD journal size in MB
-#block_db_size: -1 # block db size in bytes for the ceph-volume lvm batch. -1 means use the default of 'as big as possible'.
 #public_network: 0.0.0.0/0
 #cluster_network: "{{ public_network | regex_replace(' ', '') }}"
 #osd_mkfs_type: xfs
 #osd_mkfs_options_xfs: -f -i size=2048
 #osd_mount_options_xfs: noatime,largeio,inode64,swalloc
-#osd_objectstore: bluestore
-
-# Any device containing these patterns in their path will be excluded.
-#osd_auto_discovery_exclude: "dm-*|loop*|md*|rbd*"
+#osd_objectstore: filestore
 
 # xattrs. by default, 'filestore xattr use omap' is set to 'true' if
 # 'osd_mkfs_type' is set to 'ext4'; otherwise it isn't set. This can
@@ -389,18 +379,17 @@ ceph_rhcs_version: 3
 
 ## Rados Gateway options
 #
-#radosgw_frontend_type: civetweb # For additional frontends see: http://docs.ceph.com/docs/mimic/radosgw/frontends/
+#radosgw_frontend_type: civetweb # For additionnal frontends see: http://docs.ceph.com/docs/mimic/radosgw/frontends/
 
 #radosgw_civetweb_port: 8080
-#radosgw_civetweb_num_threads: 512
+#radosgw_civetweb_num_threads: 100
 #radosgw_civetweb_options: "num_threads={{ radosgw_civetweb_num_threads }}"
 # For additional civetweb configuration options available such as SSL, logging,
 # keepalive, and timeout settings, please see the civetweb docs at
 # https://github.com/civetweb/civetweb/blob/master/docs/UserManual.md
 
 #radosgw_frontend_port: "{{ radosgw_civetweb_port if radosgw_frontend_type == 'civetweb' else '8080' }}"
-#radosgw_frontend_options: "{{ radosgw_civetweb_options if radosgw_frontend_type == 'civetweb' else '' }}"
-#radosgw_thread_pool_size: 512
+#radosgw_frontend_options: "{{ radosgw_civetweb_options if radosgw_frontend_type == 'civetweb' }}"
 
 
 # You must define either radosgw_interface, radosgw_address.
@@ -408,7 +397,7 @@ ceph_rhcs_version: 3
 # Eg. If you want to specify for each radosgw node which address the radosgw will bind to you can set it in your **inventory host file** by using 'radosgw_address' variable.
 # Preference will go to radosgw_address if both radosgw_address and radosgw_interface are defined.
 #radosgw_interface: interface
-#radosgw_address: x.x.x.x
+#radosgw_address: address
 #radosgw_address_block: subnet
 #radosgw_keystone_ssl: false # activate this when using keystone PKI keys
 # Rados Gateway options
@@ -477,42 +466,6 @@ ceph_rhcs_version: 3
 # Set this to true to enable Object access via NFS. Requires an RGW role.
 #nfs_obj_gw: true
 
-
-#############
-# MULTISITE #
-#############
-
-#rgw_multisite: false
-
-# The following Multi-site related variables should be set by the user.
-#
-# If there is more than 1 RGW in a master or secondary cluster than rgw_multisite_endpoints needs to be a comma seperated list (with no spaces) of the RGW endpoints in the format:
-# {{ rgw_multisite_proto }}://{{ ansible_fqdn }}:{{ radosgw_frontend_port }}
-# ex: rgw_multisite_endpoints: http://foo.example.com:8080,http://bar.example.com:8080,http://baz.example.com:8080
-#
-# If there is only 1 RGW in the inventory, rgw_multisite_endpoints does not need to change
-#
-# rgw_zone is set to "default" to enable compression for clusters configured without rgw multi-site
-# If multisite is configured rgw_zone should not be set to "default". See README-MULTISITE.md for an example.
-#rgw_zone: default
-
-#rgw_zonemaster: true
-#rgw_zonesecondary: false
-#rgw_multisite_proto: "http"
-#rgw_multisite_endpoint_addr: "{{ ansible_fqdn }}"
-#rgw_multisite_endpoints_list: "{{ rgw_multisite_proto }}://{{ ansible_fqdn }}:{{ radosgw_frontend_port }}"
-#rgw_zonegroup: solarsystem # should be set by the user
-#rgw_zone_user: zone.user
-#rgw_realm: milkyway # should be set by the user
-#system_access_key: 6kWkikvapSnHyE22P7nO # should be re-created by the user
-#system_secret_key: MGecsMrWtKZgngOHZdrd6d3JxGO5CPWgT2lcnpSt # should be re-created by the user
-
-# Multi-site remote pull URL variables
-#rgw_pull_port: "{{ radosgw_civetweb_port }}"
-#rgw_pull_proto: "http" # should be the same as rgw_multisite_proto for the master zone cluster
-#rgw_pullhost: localhost # rgw_pullhost only needs to be declared if there is a zone secondary. It should be the same as rgw_multisite_endpoint_addr for the master zone cluster
-
-
 ###################
 # CONFIG OVERRIDE #
 ###################
@@ -520,12 +473,7 @@ ceph_rhcs_version: 3
 # Ceph configuration file override.
 # This allows you to specify more configuration options
 # using an INI style format.
-#
-# When configuring RGWs, make sure you use the form [client.rgw.*]
-# instead of [client.radosgw.*].
-# For more examples check the profiles directory of https://github.com/ceph/ceph-ansible.
-#
-# The following sections are supported: [global], [mon], [osd], [mds], [client]
+# The following sections are supported: [global], [mon], [osd], [mds], [rgw]
 #
 # Example:
 # ceph_conf_overrides:
@@ -540,7 +488,7 @@ ceph_rhcs_version: 3
 # OS TUNING #
 #############
 
-#disable_transparent_hugepage: "{{ false if osd_objectstore == 'bluestore' else true }}"
+#disable_transparent_hugepage: true
 #os_tuning_params:
 #  - { name: fs.file-max, value: 26234859 }
 #  - { name: vm.zone_reclaim_mode, value: 0 }
@@ -558,13 +506,9 @@ ceph_rhcs_version: 3
 ##########
 #docker_exec_cmd:
 #docker: false
-ceph_docker_image: "rhceph/rhceph-3-rhel7"
-ceph_docker_image_tag: "latest"
-ceph_docker_registry: "registry.access.redhat.com"
-## Client only docker image - defaults to {{ ceph_docker_image }}
-#ceph_client_docker_image: "{{ ceph_docker_image }}"
-#ceph_client_docker_image_tag: "{{ ceph_docker_image_tag }}"
-#ceph_client_docker_registry: "{{ ceph_docker_registry }}"
+#ceph_docker_image: "ceph/daemon"
+#ceph_docker_image_tag: latest
+#ceph_docker_registry: docker.io
 #ceph_docker_enable_centos_extra_repo: false
 #ceph_docker_on_openstack: false
 #containerized_deployment: False
@@ -583,10 +527,6 @@ ceph_docker_registry: "registry.access.redhat.com"
 # do not ever change this here
 #rolling_update: false
 
-# this is only here for usage with the switch-from-non-containerized-to-containerized-ceph-daemons.yml playbook
-# do not ever change this here
-#switch_to_container: false
-
 #####################
 # Docker pull retry #
 #####################
@@ -600,74 +540,49 @@ ceph_docker_registry: "registry.access.redhat.com"
 #openstack_config: false
 #openstack_glance_pool:
 #  name: "images"
-#  pg_num: "{{ osd_pool_default_pg_num }}"
-#  pgp_num: "{{ osd_pool_default_pg_num }}"
+#  pg_num: "{{ hostvars[groups[mon_group_name][0]]['osd_pool_default_pg_num'] }}"
+#  pgp_num: "{{ hostvars[groups[mon_group_name][0]]['osd_pool_default_pg_num'] }}"
 #  rule_name: "replicated_rule"
 #  type: 1
 #  erasure_profile: ""
 #  expected_num_objects: ""
 #  application: "rbd"
-#  size: "{{ osd_pool_default_size }}"
 #openstack_cinder_pool:
 #  name: "volumes"
-#  pg_num: "{{ osd_pool_default_pg_num }}"
-#  pgp_num: "{{ osd_pool_default_pg_num }}"
+#  pg_num: "{{ hostvars[groups[mon_group_name][0]]['osd_pool_default_pg_num'] }}"
+#  pgp_num: "{{ hostvars[groups[mon_group_name][0]]['osd_pool_default_pg_num'] }}"
 #  rule_name: "replicated_rule"
 #  type: 1
 #  erasure_profile: ""
 #  expected_num_objects: ""
 #  application: "rbd"
-#  size: "{{ osd_pool_default_size }}"
 #openstack_nova_pool:
 #  name: "vms"
-#  pg_num: "{{ osd_pool_default_pg_num }}"
-#  pgp_num: "{{ osd_pool_default_pg_num }}"
+#  pg_num: "{{ hostvars[groups[mon_group_name][0]]['osd_pool_default_pg_num'] }}"
+#  pgp_num: "{{ hostvars[groups[mon_group_name][0]]['osd_pool_default_pg_num'] }}"
 #  rule_name: "replicated_rule"
 #  type: 1
 #  erasure_profile: ""
 #  expected_num_objects: ""
 #  application: "rbd"
-#  size: "{{ osd_pool_default_size }}"
 #openstack_cinder_backup_pool:
 #  name: "backups"
-#  pg_num: "{{ osd_pool_default_pg_num }}"
-#  pgp_num: "{{ osd_pool_default_pg_num }}"
+#  pg_num: "{{ hostvars[groups[mon_group_name][0]]['osd_pool_default_pg_num'] }}"
+#  pgp_num: "{{ hostvars[groups[mon_group_name][0]]['osd_pool_default_pg_num'] }}"
 #  rule_name: "replicated_rule"
 #  type: 1
 #  erasure_profile: ""
 #  expected_num_objects: ""
 #  application: "rbd"
-#  size: "{{ osd_pool_default_size }}"
 #openstack_gnocchi_pool:
 #  name: "metrics"
-#  pg_num: "{{ osd_pool_default_pg_num }}"
-#  pgp_num: "{{ osd_pool_default_pg_num }}"
+#  pg_num: "{{ hostvars[groups[mon_group_name][0]]['osd_pool_default_pg_num'] }}"
+#  pgp_num: "{{ hostvars[groups[mon_group_name][0]]['osd_pool_default_pg_num'] }}"
 #  rule_name: "replicated_rule"
 #  type: 1
 #  erasure_profile: ""
 #  expected_num_objects: ""
 #  application: "rbd"
-#  size: "{{ osd_pool_default_size }}"
-#openstack_cephfs_data_pool:
-#  name: "manila_data"
-#  pg_num: "{{ osd_pool_default_pg_num }}"
-#  pgp_num: "{{ osd_pool_default_pg_num }}"
-#  rule_name: "replicated_rule"
-#  type: 1
-#  erasure_profile: ""
-#  expected_num_objects: ""
-#  application: "rbd"
-#  size: "{{ osd_pool_default_size }}"
-#openstack_cephfs_metadata_pool:
-#  name: "manila_metadata"
-#  pg_num: "{{ osd_pool_default_pg_num }}"
-#  pgp_num: "{{ osd_pool_default_pg_num }}"
-#  rule_name: "replicated_rule"
-#  type: 1
-#  erasure_profile: ""
-#  expected_num_objects: ""
-#  application: "rbd"
-#  size: "{{ osd_pool_default_size }}"
 
 #openstack_pools:
 #  - "{{ openstack_glance_pool }}"
@@ -675,8 +590,6 @@ ceph_docker_registry: "registry.access.redhat.com"
 #  - "{{ openstack_nova_pool }}"
 #  - "{{ openstack_cinder_backup_pool }}"
 #  - "{{ openstack_gnocchi_pool }}"
-#  - "{{ openstack_cephfs_data_pool }}"
-#  - "{{ openstack_cephfs_metadata_pool }}"
 
 
 # The value for 'key' can be a pre-generated key,
@@ -696,4 +609,3 @@ ceph_docker_registry: "registry.access.redhat.com"
 ###############
 
 #use_fqdn_yes_i_am_sure: false
-

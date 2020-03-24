@@ -62,10 +62,6 @@
   become: true
 
   pre_tasks:
-    - name: set_fact switch_to_container to indicate that we run a special playbook
-      set_fact:
-        switch_to_container: True
-
     - name: select a running monitor
       set_fact: mon_host={{ item }}
       with_items: "{{ groups[mon_group_name] }}"
@@ -80,24 +76,26 @@
     - name: set_fact ceph_uid for ubuntu
       set_fact:
         ceph_uid: 64045
-      when: ceph_docker_image_tag | string is search("ubuntu")
+      when: ceph_docker_image_tag | search("ubuntu")
 
     - name: set_fact ceph_uid for red hat
       set_fact:
         ceph_uid: 167
-      when: ceph_docker_image_tag | string is match("latest") or ceph_docker_image_tag | string is search("centos") or ceph_docker_image_tag | string is search("fedora")
+      when: ceph_docker_image_tag | match("latest") or ceph_docker_image_tag | search("centos") or ceph_docker_image_tag | search("fedora")
 
     - name: set_fact ceph_uid for rhel
       set_fact:
          ceph_uid: 167
-      when: ceph_docker_image is search("rhceph")
+      when: ceph_docker_image | search("rhceph")
 
-    # NOTE: changed from file module to raw find command for performance reasons
-    # The file module has to run checks on current ownership of all directories and files. This is unnecessary
-    # as in this case we know we want all owned by ceph user
     - name: set proper ownership on ceph directories
-      command: "find /var/lib/ceph /etc/ceph -not -( -user {{ ceph_uid }} -or -group {{ ceph_uid }} -) -execdir chown {{ ceph_uid }}:{{ ceph_uid }} {} +"
-      changed_when: false
+      file:
+        path: "{{ item }}"
+        owner: "{{ ceph_uid }}"
+        recurse: yes
+      with_items:
+        - /var/lib/ceph
+        - /etc/ceph
 
     - name: check for existing old leveldb file extension (ldb)
       shell: stat /var/lib/ceph/mon/*/store.db/*.ldb
@@ -111,17 +109,8 @@
       failed_when: false
       when: ldb_files.rc == 0
 
-    - name: copy mon initial keyring in /etc/ceph to satisfy fetch config task in ceph-docker-common
-      command: cp /var/lib/ceph/mon/{{ cluster }}-{{ ansible_hostname }}/keyring /etc/ceph/{{ cluster }}.mon.keyring
-      args:
-        creates: /etc/ceph/{{ cluster }}.mon.keyring
-      changed_when: false
-      failed_when: false
-
   roles:
     - ceph-defaults
-    - ceph-facts
-    - ceph-handler
     - ceph-docker-common
     - ceph-mon
 
@@ -162,23 +151,23 @@
 
     - set_fact:
         ceph_uid: 64045
-      when: ceph_docker_image_tag | string is match("latest") or ceph_docker_image_tag | string is search("ubuntu")
+      when: ceph_docker_image_tag | match("latest") or ceph_docker_image_tag | search("ubuntu")
 
     - set_fact:
         ceph_uid: 167
-      when: ceph_docker_image_tag | string is search("centos") or ceph_docker_image is search("rhceph") or ceph_docker_image_tag | string is search("fedora")
+      when: ceph_docker_image_tag | search("centos") or ceph_docker_image | search("rhceph") or ceph_docker_image_tag | search("fedora")
 
-    # NOTE: changed from file module to raw find command for performance reasons
-    # The file module has to run checks on current ownership of all directories and files. This is unnecessary
-    # as in this case we know we want all owned by ceph user
     - name: set proper ownership on ceph directories
-      command: "find /var/lib/ceph /etc/ceph -not -( -user {{ ceph_uid }} -or -group {{ ceph_uid }} -) -execdir chown {{ ceph_uid }}:{{ ceph_uid }} {} +"
-      changed_when: false
+      file:
+        path: "{{ item }}"
+        owner: "{{ ceph_uid }}"
+        recurse: yes
+      with_items:
+        - /var/lib/ceph
+        - /etc/ceph
 
   roles:
     - ceph-defaults
-    - ceph-facts
-    - ceph-handler
     - ceph-docker-common
     - ceph-mgr
 
@@ -201,76 +190,58 @@
   pre_tasks:
     - name: collect running osds and ceph-disk unit(s)
       shell: |
-        systemctl list-units | grep "loaded active" | grep -Eo 'ceph-osd@[0-9]+.service|ceph-disk@dev-[a-z]{3,4}[0-9]{1}.service|ceph-volume|ceph\.target'
+        systemctl list-units | grep "loaded active" | grep -Eo 'ceph-osd@[0-9]{1,2}.service|ceph-disk@dev-[a-z]{3,4}[0-9]{1}.service'
       register: running_osds
       changed_when: false
       failed_when: false
+
+    - name: collect osd devices
+      shell: |
+        blkid | awk '/ceph data/ { sub ("1:", "", $1); print $1 }'
+      register: collect_devices
+      changed_when: false
+      when:
+        - devices is not defined or (devices is defined and devices == [])
+
+    - name: set devices
+      set_fact:
+        devices: "{{ collect_devices.stdout_lines | list }}"
+      when:
+        - collect_devices is defined
+        - not collect_devices.get("skipped")
+        - collect_devices != []
 
     - name: stop/disable/mask non-containerized ceph osd(s) and ceph-disk units (if any)
       systemd:
         name: "{{ item }}"
         state: stopped
         enabled: no
+        masked: yes
       with_items: "{{ running_osds.stdout_lines | default([])}}"
       when: running_osds != []
 
-    - name: remove old ceph-osd systemd units
-      file:
-        path: "{{ item }}"
-        state: absent
-      with_items:
-        - /usr/lib/systemd/system/ceph-osd.target
-        - /usr/lib/systemd/system/ceph-osd@.service
-        - /usr/lib/systemd/system/ceph-volume@.service
-        - /etc/systemd/system/ceph.target.wants
-
-    - name: dmcrypt extra operations
-      when:
-        - osd_scenario != 'lvm'
-        - dmcrypt | bool
-      block:
-        - name: remove zero(s) partuuid symlink
-          file:
-            path: /dev/disk/by-partuuid/00000000-0000-0000-0000-000000000000
-            state: absent
-
-        - name: get lockbox partitions
-          command: blkid -t PARTLABEL="ceph lockbox" -o device
-          changed_when: false
-          failed_when: false
-          register: lockbox_partitions
-
-        - name: get lockbox devices without partuuid
-          command: "blkid -t PARTUUID=00000000-0000-0000-0000-000000000000 -o device {{ item }}"
-          changed_when: false
-          failed_when: false
-          register: lockbox_devices
-          with_items: '{{ lockbox_partitions.stdout_lines }}'
-
-        - name: set guid on lockbox partition
-          shell: 'sgdisk --partition-guid=5:$(uuidgen) {{ item.stdout[:-2] if item.stdout is match("^/dev/(cciss|nvme|loop).*") else item.stdout[:-1] }}'
-          with_items: '{{ lockbox_devices.results }}'
-
     - set_fact:
         ceph_uid: 64045
-      when: ceph_docker_image_tag | string is match("latest") or ceph_docker_image_tag | string is search("ubuntu")
+      when: ceph_docker_image_tag | match("latest") or ceph_docker_image_tag | search("ubuntu")
 
     - name: set_fact ceph_uid for red hat
       set_fact:
         ceph_uid: 167
-      when: ceph_docker_image_tag | string is match("latest") or ceph_docker_image_tag | string is search("centos") or ceph_docker_image_tag | string is search("fedora")
+      when: ceph_docker_image_tag | match("latest") or ceph_docker_image_tag | search("centos") or ceph_docker_image_tag | search("fedora")
 
     - name: set_fact ceph_uid for rhel
       set_fact:
          ceph_uid: 167
-      when: ceph_docker_image is search("rhceph")
+      when: ceph_docker_image | search("rhceph")
 
-    # NOTE: changed from file module to raw find command for performance reasons
-    # The file module has to run checks on current ownership of all directories and files. This is unnecessary
-    # as in this case we know we want all owned by ceph user
     - name: set proper ownership on ceph directories
-      command: "find /var/lib/ceph /etc/ceph -not -( -user {{ ceph_uid }} -or -group {{ ceph_uid }} -) -execdir chown {{ ceph_uid }}:{{ ceph_uid }} {} +"
-      changed_when: false
+      file:
+        path: "{{ item }}"
+        owner: "{{ ceph_uid }}"
+        recurse: yes
+      with_items:
+        - /var/lib/ceph
+        - /etc/ceph
 
     - name: check for existing old leveldb file extension (ldb)
       shell: stat /var/lib/ceph/osd/*/current/omap/*.ldb
@@ -286,32 +257,31 @@
         - ldb_files.rc == 0
 
     - name: check if containerized osds are already running
-      command: >
-        docker ps -q --filter='name=ceph-osd'
+      shell: |
+        docker ps | grep -sq {{ item | regex_replace('/', '') }}
       changed_when: false
       failed_when: false
+      with_items: "{{ devices }}"
       register: osd_running
 
-    - name: get osd directories
-      command: >
-        find /var/lib/ceph/osd {% if dmcrypt | bool %}/var/lib/ceph/osd-lockbox{% endif %} -maxdepth 1 -mindepth 1 -type d
-      register: osd_dirs
+    - name: resolve device(s) path(s)
+      command: readlink -f {{ item }}
       changed_when: false
-      failed_when: false
+      with_items: "{{ devices }}"
+      register: devices_canonicalize
 
     - name: unmount all the osd directories
-      command: >
-        umount {{ item }}
+      command: umount "{{ item.0.stdout }}"1
       changed_when: false
       failed_when: false
-      with_items: "{{ osd_dirs.stdout_lines }}"
-      when: osd_running.rc != 0 or osd_running.stdout_lines | length == 0
-
+      with_together:
+        - "{{ devices_canonicalize.results }}"
+        - "{{ osd_running.results }}"
+      when:
+        - item.1.get("rc", 0) != 0
 
   roles:
     - ceph-defaults
-    - ceph-facts
-    - ceph-handler
     - ceph-docker-common
     - ceph-osd
 
@@ -325,9 +295,9 @@
       command: "docker exec ceph-mon-{{ hostvars[groups[mon_group_name][0]]['ansible_hostname'] }} ceph --cluster {{ cluster }} -s --format json"
       register: ceph_health_post
       until: >
-        (((ceph_health_post.stdout | from_json).pgmap.pgs_by_state | length) > 0)
+        ((ceph_health_post.stdout | from_json).pgmap.pgs_by_state | length) == 1
         and
-        (((ceph_health_post.stdout | from_json).pgmap.pgs_by_state | selectattr('state_name', 'search', '^active\\+clean') | map(attribute='count') | list | sum) == (ceph_pgs.stdout | from_json).pgmap.num_pgs)
+        (ceph_health_post.stdout | from_json).pgmap.pgs_by_state.0.state_name == "active+clean"
       delegate_to: "{{ groups[mon_group_name][0] }}"
       retries: "{{ health_osd_check_retries }}"
       delay: "{{ health_osd_check_delay }}"
@@ -356,23 +326,23 @@
 
     - set_fact:
         ceph_uid: 64045
-      when: ceph_docker_image_tag | string is match("latest") or ceph_docker_image_tag | string is search("ubuntu")
+      when: ceph_docker_image_tag | match("latest") or ceph_docker_image_tag | search("ubuntu")
 
     - set_fact:
         ceph_uid: 167
-      when: ceph_docker_image_tag | string is search("centos") or ceph_docker_image is search("rhceph") or ceph_docker_image_tag | string is search("fedora")
+      when: ceph_docker_image_tag | search("centos") or ceph_docker_image | search("rhceph") or ceph_docker_image_tag | search("fedora")
 
-    # NOTE: changed from file module to raw find command for performance reasons
-    # The file module has to run checks on current ownership of all directories and files. This is unnecessary
-    # as in this case we know we want all owned by ceph user
     - name: set proper ownership on ceph directories
-      command: "find /var/lib/ceph /etc/ceph -not -( -user {{ ceph_uid }} -or -group {{ ceph_uid }} -) -execdir chown {{ ceph_uid }}:{{ ceph_uid }} {} +"
-      changed_when: false
+      file:
+        path: "{{ item }}"
+        owner: "{{ ceph_uid }}"
+        recurse: yes
+      with_items:
+        - /var/lib/ceph
+        - /etc/ceph
 
   roles:
     - ceph-defaults
-    - ceph-facts
-    - ceph-handler
     - ceph-docker-common
     - ceph-mds
 
@@ -398,23 +368,23 @@
 
     - set_fact:
         ceph_uid: 64045
-      when: ceph_docker_image_tag | string is match("latest") or ceph_docker_image_tag | string is search("ubuntu")
+      when: ceph_docker_image_tag | match("latest") or ceph_docker_image_tag | search("ubuntu")
 
     - set_fact:
         ceph_uid: 167
-      when: ceph_docker_image_tag | string is search("centos") or ceph_docker_image is search("rhceph") or ceph_docker_image_tag | string is search("fedora")
+      when: ceph_docker_image_tag | search("centos") or ceph_docker_image | search("rhceph") or ceph_docker_image_tag | search("fedora")
 
-    # NOTE: changed from file module to raw find command for performance reasons
-    # The file module has to run checks on current ownership of all directories and files. This is unnecessary
-    # as in this case we know we want all owned by ceph user
     - name: set proper ownership on ceph directories
-      command: "find /var/lib/ceph /etc/ceph -not -( -user {{ ceph_uid }} -or -group {{ ceph_uid }} -) -execdir chown {{ ceph_uid }}:{{ ceph_uid }} {} +"
-      changed_when: false
+      file:
+        path: "{{ item }}"
+        owner: "{{ ceph_uid }}"
+        recurse: yes
+      with_items:
+        - /var/lib/ceph
+        - /etc/ceph
 
   roles:
     - ceph-defaults
-    - ceph-facts
-    - ceph-handler
     - ceph-docker-common
     - ceph-rgw
 
@@ -440,23 +410,23 @@
 
     - set_fact:
         ceph_uid: 64045
-      when: ceph_docker_image_tag | string is match("latest") or ceph_docker_image_tag | string is search("ubuntu")
+      when: ceph_docker_image_tag | match("latest") or ceph_docker_image_tag | search("ubuntu")
 
     - set_fact:
         ceph_uid: 167
-      when: ceph_docker_image_tag | string is search("centos") or ceph_docker_image is search("rhceph") or ceph_docker_image_tag | string is search("fedora")
+      when: ceph_docker_image_tag | search("centos") or ceph_docker_image | search("rhceph") or ceph_docker_image_tag | search("fedora")
 
-    # NOTE: changed from file module to raw find command for performance reasons
-    # The file module has to run checks on current ownership of all directories and files. This is unnecessary
-    # as in this case we know we want all owned by ceph user
     - name: set proper ownership on ceph directories
-      command: "find /var/lib/ceph /etc/ceph -not -( -user {{ ceph_uid }} -or -group {{ ceph_uid }} -) -execdir chown {{ ceph_uid }}:{{ ceph_uid }} {} +"
-      changed_when: false
+      file:
+        path: "{{ item }}"
+        owner: "{{ ceph_uid }}"
+        recurse: yes
+      with_items:
+        - /var/lib/ceph
+        - /etc/ceph
 
   roles:
     - ceph-defaults
-    - ceph-facts
-    - ceph-handler
     - ceph-docker-common
     - ceph-rbd-mirror
 
@@ -486,22 +456,22 @@
 
     - set_fact:
         ceph_uid: 64045
-      when: ceph_docker_image_tag | string is match("latest") or ceph_docker_image_tag | string is search("ubuntu")
+      when: ceph_docker_image_tag | match("latest") or ceph_docker_image_tag | search("ubuntu")
 
     - set_fact:
         ceph_uid: 167
-      when: ceph_docker_image_tag | string is search("centos") or ceph_docker_image is search("rhceph") or ceph_docker_image_tag | string is search("fedora")
+      when: ceph_docker_image_tag | search("centos") or ceph_docker_image | search("rhceph") or ceph_docker_image_tag | search("fedora")
 
-    # NOTE: changed from file module to raw find command for performance reasons
-    # The file module has to run checks on current ownership of all directories and files. This is unnecessary
-    # as in this case we know we want all owned by ceph user
     - name: set proper ownership on ceph directories
-      command: "find /var/lib/ceph /etc/ceph -not -( -user {{ ceph_uid }} -or -group {{ ceph_uid }} -) -execdir chown {{ ceph_uid }}:{{ ceph_uid }} {} +"
-      changed_when: false
+      file:
+        path: "{{ item }}"
+        owner: "{{ ceph_uid }}"
+        recurse: yes
+      with_items:
+        - /var/lib/ceph
+        - /etc/ceph
 
   roles:
     - ceph-defaults
-    - ceph-facts
-    - ceph-handler
     - ceph-docker-common
     - ceph-nfs

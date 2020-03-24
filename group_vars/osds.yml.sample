@@ -47,6 +47,7 @@ dummy:
 
 
 #'osd_auto_discovery'  mode prevents you from filling out the 'devices' variable above.
+#  You can use this option with First and Forth and Fifth OSDS scenario.
 # Device discovery is based on the Ansible fact 'ansible_devices'
 # which reports all the devices on a system. If chosen all the disks
 # found will be passed to ceph-disk. You should not be worried on using
@@ -127,9 +128,8 @@ dummy:
 # - The devices listed in 'devices' will get 2 partitions, one for 'block' and one for 'data'.
 # 'data' is only 100MB big and do not store any of your data, it's just a bunch of Ceph metadata.
 # 'block' will store all your actual data.
-# - The devices in 'dedicated_devices' will get one partition for RocksDB DB, called 'block.db'
-#  and one for RocksDB WAL, called 'block.wal'. To use a single partition for RocksDB and WAL together
-#  set bluestore_wal_devices to [].
+# - The devices in 'dedicated_devices' will get 1 partition for RocksDB DB, called 'block.db'
+#  and one for RocksDB WAL, called 'block.wal'
 #
 # By default dedicated_devices will represent block.db
 #
@@ -140,6 +140,7 @@ dummy:
 # /dev/sda2: PARTLABEL="ceph block" PARTUUID="ea454807-983a-4cf2-899e-b2680643bc1c"
 # /dev/sdb: PTTYPE="gpt"
 # /dev/sdb1: PARTLABEL="ceph block.db" PARTUUID="af5b2d74-4c08-42cf-be57-7248c739e217"
+# /dev/sdb2: PARTLABEL="ceph block.wal" PARTUUID="af3f8327-9aa9-4c2b-a497-cf0fe96d126a"
 #
 # Note: This scenario uses the ceph-disk tool to provision OSDs
 #dedicated_devices: []
@@ -149,10 +150,8 @@ dummy:
 #
 # ONLY if osd_objectstore: bluestore is enabled.
 #
-# By default, if 'bluestore_wal_devices' is empty.
+# By default, if 'bluestore_wal_devices' is empty, it will get the content of 'dedicated_devices'.
 # If set, then you will have a dedicated partition on a specific device for block.wal.
-#
-# Set bluestore_wal_devices: [] to use the same partition for RocksDB and WAL.
 #
 # Example of what you will get:
 # [root@ceph-osd0 ~]# blkid /dev/sd*
@@ -164,7 +163,7 @@ dummy:
 # /dev/sdc: PTTYPE="gpt"
 # /dev/sdc1: PARTLABEL="ceph block.wal" PARTUUID="824b84ba-6777-4272-bbbd-bfe2a25cecf3"
 # Note: This option uses the ceph-disk tool
-#bluestore_wal_devices: []
+#bluestore_wal_devices: "{{ dedicated_devices }}"
 
 # III. Use ceph-volume to create OSDs from logical volumes.
 # Use 'osd_scenario: lvm' to enable this scenario.
@@ -220,42 +219,7 @@ dummy:
 #   - data: /dev/sdb1
 
 #lvm_volumes: []
-#crush_device_class: ""
-#osds_per_device: 1
 
-###############
-# CRUSH RULES #
-###############
-#crush_rule_config: false
-
-#crush_rule_hdd:
-#  name: HDD
-#  root: default
-#  type: host
-#  class: hdd
-#  default: false
-
-#crush_rule_ssd:
-#  name: SSD
-#  root: default
-#  type: host
-#  class: ssd
-#  default: false
-
-#crush_rules:
-#  - "{{ crush_rule_hdd }}"
-#  - "{{ crush_rule_ssd }}"
-
-# Caution: this will create crush roots and racks according to hostvars {{ osd_crush_location }}
-# and will move hosts into them which might lead to significant data movement in the cluster!
-#
-# In order for the playbook to create CRUSH hierarchy, you have to setup your Ansible inventory file like so:
-#
-# [osds]
-# ceph-osd-01 osd_crush_location="{ 'root': 'mon-roottt', 'rack': 'mon-rackkkk', 'pod': 'monpod', 'host': 'ceph-osd-01' }"
-#
-# Note that 'host' is mandatory and that you need to submit at least two bucket type (including the host)
-#create_crush_tree: false
 
 ##########
 # DOCKER #
@@ -265,10 +229,10 @@ dummy:
 
 # Resource limitation
 # For the whole list of limits you can apply see: docs.docker.com/engine/admin/resource_constraints
-# Default values are based from: https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/3/html/red_hat_ceph_storage_hardware_selection_guide/ceph-hardware-min-recommend
+# Default values are based from: https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/2/html/red_hat_ceph_storage_hardware_guide/minimum_recommendations
 # These options can be passed using the 'ceph_osd_docker_extra_env' variable.
-#ceph_osd_docker_memory_limit: "{{ ansible_memtotal_mb }}m"
-#ceph_osd_docker_cpu_limit: 4
+#ceph_osd_docker_memory_limit: 5g
+#ceph_osd_docker_cpu_limit: 1
 
 # The next two variables are undefined, and thus, unused by default.
 # If `lscpu | grep NUMA` returned the following:
@@ -289,7 +253,7 @@ dummy:
 #
 #ceph_osd_docker_extra_env:
 #ceph_osd_docker_run_script_path: "/usr/share" # script called by systemd to run the docker command
-#ceph_osd_numactl_opts: ""
+
 
 ###########
 # SYSTEMD #
@@ -302,10 +266,3 @@ dummy:
 #  Service:
 #    PrivateDevices: False
 
-
-###########
-#  CHECK  #
-###########
-
-#nb_retry_wait_osd_up: 60
-#delay_wait_osd_up: 10

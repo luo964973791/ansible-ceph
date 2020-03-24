@@ -23,6 +23,7 @@ class CallbackModule(CallbackBase):
         installer_phases = [
             'installer_phase_ceph_mon',
             'installer_phase_ceph_mgr',
+            'installer_phase_ceph_agent',
             'installer_phase_ceph_osd',
             'installer_phase_ceph_mds',
             'installer_phase_ceph_rgw',
@@ -42,6 +43,10 @@ class CallbackModule(CallbackBase):
             'installer_phase_ceph_mgr': {
                 'title': 'Install Ceph Manager',
                 'playbook': 'roles/ceph-mgr/tasks/main.yml'
+            },
+            'installer_phase_ceph_agent': {
+                'title': 'Install Ceph Agent',
+                'playbook': 'roles/ceph-agent/tasks/main.yml'
             },
             'installer_phase_ceph_osd': {
                 'title': 'Install Ceph OSD',

@@ -1,4 +1,0 @@
----
-ceph_osd_docker_run_script_path: /var/tmp
-journal_size: 100
-

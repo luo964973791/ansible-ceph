@@ -2,15 +2,12 @@
 
 Layout and conventions
 ----------------------
-
 Test files and directories follow a few conventions, which makes it easy to
 create (or expect) certain interactions between tests and scenarios.
 
 All tests are in the ``tests`` directory. Scenarios are defined in
 ``tests/functional/`` and use the following convention for directory
-structure:
-
-.. code-block:: none
+structure::
 
     tests/functional/<distro>/<distro version>/<scenario name>/
 
@@ -35,7 +32,6 @@ At the very least, a scenario will need these files:
 
 Conventions
 -----------
-
 Python test files (unlike scenarios) rely on paths to *map* where they belong. For
 example, a file that should only test monitor nodes would live in
 ``ceph-ansible/tests/functional/tests/mon/``. Internally, the test runner

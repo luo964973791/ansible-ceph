@@ -67,7 +67,7 @@
   uri:
     url: https://shaman.ceph.com/api/repos/nfs-ganesha/next/latest/{{ ansible_distribution | lower }}/{{ ansible_distribution_release }}/flavors/{{ nfs_ganesha_flavor }}/repo
     return_content: yes
-  register: nfs_ganesha_dev_apt_repo
+  register: nfs_ganesha_apt_repo
   when:
     - ansible_os_family == 'Debian'
     - nfs_ganesha_dev
@@ -231,3 +231,10 @@
     owner: "root"
     group: "root"
     mode: "0755"
+
+- name: stop nfs server service
+  systemd:
+    name: "{%- if ansible_os_family == 'RedHat' 'nfs-server' %}{%- endif %}{%- if ansible_os_family == 'Suse' 'nfsserver' %}{%- endif %}{%- if ansible_os_family == 'Debian' 'nfs-kernel-server' %}{%- endif %}"
+    state: stopped
+    enabled: no
+  ignore_errors: true

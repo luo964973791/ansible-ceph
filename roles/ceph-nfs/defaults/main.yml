@@ -70,7 +70,6 @@ ceph_nfs_ceph_pseudo_path: "/cephfile"
 ceph_nfs_ceph_protocols: "3,4"
 ceph_nfs_ceph_access_type: "RW"
 ceph_nfs_ceph_user: "admin"
-ceph_nfs_ceph_squash: "Root_Squash"
 
 ###################
 # FSAL RGW Config #
@@ -80,7 +79,6 @@ ceph_nfs_rgw_pseudo_path: "/cephobject"
 ceph_nfs_rgw_protocols: "3,4"
 ceph_nfs_rgw_access_type: "RW"
 ceph_nfs_rgw_user: "cephnfs"
-ceph_nfs_rgw_squash: "Root_Squash"
 # Note: keys are optional and can be generated, but not on containerized, where
 # they must be configered.
 #ceph_nfs_rgw_access_key: "QFAMEDSJP5DEKJO0DDXY"
@@ -115,6 +113,6 @@ rgw_client_name: client.rgw.{{ ansible_hostname }}
 ##########
 
 ceph_docker_image: "ceph/daemon"
-ceph_docker_image_tag: latest-mimic
+ceph_docker_image_tag: latest
 ceph_nfs_docker_extra_env:
 ceph_config_keys: [] # DON'T TOUCH ME

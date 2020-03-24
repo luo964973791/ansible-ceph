@@ -1,19 +1,23 @@
 ---
 - name: include multisite checks
-  include_tasks: checks.yml
+  include: checks.yml
 
 # Include the tasks depending on the zone type
-- name: include_tasks master.yml
-  include_tasks: master.yml
+- name: include master multisite tasks
+  include: master.yml
   when:
+    - rgw_zonemaster is defined
     - rgw_zonemaster
-    - not rgw_zonesecondary
+  # Hard code this so we will skip the entire file instead of individual tasks (Default isn't Consistent)
+  static: False
 
-- name: include_tasks secondary.yml
-  include_tasks: secondary.yml
+- name: include secondary multisite tasks
+  include: secondary.yml
   when:
-    - not rgw_zonemaster
+    - rgw_zonesecondary is defined
     - rgw_zonesecondary
+  # Hard code this so we will skip the entire file instead of individual tasks (Default isn't Consistent)
+  static: False
 
 # Continue with common tasks
 - name: add zone to rgw stanza in ceph.conf

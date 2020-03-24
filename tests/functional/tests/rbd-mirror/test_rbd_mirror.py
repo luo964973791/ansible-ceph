@@ -8,28 +8,63 @@ class TestRbdMirrors(object):
     def test_rbd_mirror_is_installed(self, node, host):
         assert host.package("rbd-mirror").is_installed
 
+    @pytest.mark.no_docker
+    @pytest.mark.before_luminous
+    def test_rbd_mirror_service_is_running_before_luminous(self, node, host):
+        service_name = "ceph-rbd-mirror@admin"
+        assert host.service(service_name).is_running
+
     @pytest.mark.docker
-    def test_rbd_mirror_service_is_running_docker(self, node, host):
+    @pytest.mark.before_luminous
+    def test_rbd_mirror_service_is_running_docker_before_luminous(self, node, host):
         service_name = "ceph-rbd-mirror@rbd-mirror.{hostname}".format(
             hostname=node["vars"]["inventory_hostname"]
         )
         assert host.service(service_name).is_running
 
-    def test_rbd_mirror_service_is_running(self, node, host):
+    @pytest.mark.docker
+    @pytest.mark.from_luminous
+    def test_rbd_mirror_service_is_running_docker_from_luminous(self, node, host):
         service_name = "ceph-rbd-mirror@rbd-mirror.{hostname}".format(
             hostname=node["vars"]["inventory_hostname"]
         )
         assert host.service(service_name).is_running
 
-    def test_rbd_mirror_service_is_enabled(self, node, host):
+    @pytest.mark.from_luminous
+    def test_rbd_mirror_service_is_running_from_luminous(self, node, host):
+        service_name = "ceph-rbd-mirror@rbd-mirror.{hostname}".format(
+            hostname=node["vars"]["inventory_hostname"]
+        )
+        assert host.service(service_name).is_running
+
+    @pytest.mark.no_docker
+    @pytest.mark.before_luminous
+    def test_rbd_mirror_service_is_enabled_before_luminous(self, node, host):
+        service_name = "ceph-rbd-mirror@admin"
+        assert host.service(service_name).is_enabled
+
+    @pytest.mark.docker
+    @pytest.mark.before_luminous
+    def test_rbd_mirror_service_is_enabled_docker_before_luminous(self, node, host):
         service_name = "ceph-rbd-mirror@rbd-mirror.{hostname}".format(
             hostname=node["vars"]["inventory_hostname"]
         )
         assert host.service(service_name).is_enabled
 
+    @pytest.mark.from_luminous
+    def test_rbd_mirror_service_is_enabled_from_luminous(self, node, host):
+        service_name = "ceph-rbd-mirror@rbd-mirror.{hostname}".format(
+            hostname=node["vars"]["inventory_hostname"]
+        )
+        assert host.service(service_name).is_enabled
+
+    @pytest.mark.from_luminous
     def test_rbd_mirror_is_up(self, node, host):
+        ceph_release_num=node['ceph_release_num']
+        ceph_stable_release=node['ceph_stable_release']
         hostname=node["vars"]["inventory_hostname"]
         cluster=node["cluster_name"]
+        rolling_update=node["rolling_update"]
         daemons = []
         if node['docker']:
             docker_exec_cmd = 'docker exec ceph-rbd-mirror-{hostname}'.format(hostname=hostname)
@@ -45,6 +80,10 @@ class TestRbdMirrors(object):
         output = host.check_output(cmd)
         status = json.loads(output)
         daemon_ids = [i for i in status["servicemap"]["services"]["rbd-mirror"]["daemons"].keys() if i != "summary"]
-        for daemon_id in daemon_ids:
-            daemons.append(status["servicemap"]["services"]["rbd-mirror"]["daemons"][daemon_id]["metadata"]["hostname"])
-        assert hostname in daemons
+        if ceph_release_num[ceph_stable_release] > ceph_release_num['luminous'] or (ceph_release_num[ceph_stable_release] == ceph_release_num['luminous'] and rolling_update=='True'):
+            for daemon_id in daemon_ids:
+                daemons.append(status["servicemap"]["services"]["rbd-mirror"]["daemons"][daemon_id]["metadata"]["hostname"])
+            result = hostname in daemons
+        else:
+            result = hostname in daemon_ids
+        assert result

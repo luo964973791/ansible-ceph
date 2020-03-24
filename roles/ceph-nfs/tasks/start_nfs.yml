@@ -33,13 +33,16 @@
     mode: "0755"
 
 - name: generate ganesha configuration file
-  template:
+  action: config_template
+  args:
     src: "ganesha.conf.j2"
     dest: /etc/ganesha/ganesha.conf
     owner: "root"
     group: "root"
     mode: "0644"
-  notify: restart ceph nfss
+    config_type: ini
+  notify:
+    - restart ceph nfss
 
 - name: create exports directory
   file:
