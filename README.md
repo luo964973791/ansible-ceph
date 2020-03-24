@@ -4,13 +4,15 @@
 yum install epel-release -y
 yum install python-pip git -y
 pip install ansible==2.4.2
+pip install --upgrade pip
+pip install --upgrade setuptools
 cd /root && git clone https://github.com/luo964973791/ansible-ceph.git
 ```
 
 ### 准备hosts文件
 
 ```javascript
-vi /root/ceph_ansible/hosts
+vi /root/ansible-ceph/hosts
 [mons]
 172.16.68.11
 172.16.68.10
@@ -43,7 +45,7 @@ vi /root/ceph_ansible/hosts
 ### 修改复制文件
 
 ```javascript
-cd /root/ceph-ansible
+cd /root/ansible-ceph
 cp group_vars/all.yml.sample group_vars/all.yml
 cp group_vars/osds.yml.sample group_vars/osds.yml
 cp site.yml.sample site.yml
@@ -116,7 +118,7 @@ ceph_conf_overrides:
 ### 挂载点
 
 ```javascript
-vi /root/ceph-ansible/group_vars/osds.yml
+vi /root/ansible-ceph/group_vars/osds.yml
 devices:
   - '/dev/vdb'
 osd_scenario: collocated
@@ -126,7 +128,7 @@ osd_objectstore: bluestore
 ### 修改配置
 
 ```javascript
-cd /root/ceph-ansible && cp site.yml.sample site.yml
+cd /root/ansible-ceph && cp site.yml.sample site.yml
 vi site.yml
 - hosts:
   - mons
@@ -146,7 +148,7 @@ vi site.yml
 ### 安装ceph
 
 ```javascript
-cd /root/ceph-ansible && ansible-playbook -i hosts site.yml
+cd /root/ansible-ceph && ansible-playbook -i hosts site.yml
 ```
 
 ### 检查状态.
