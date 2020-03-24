@@ -154,6 +154,7 @@ cd /root/ansible-ceph && ansible-playbook -i hosts site.yml
 ### 检查状态.
 
 ```javascript
+ceph osd pool create rbd 128
 ceph -s
   cluster:
     id:     4ff55516-ade8-4801-b7bc-ad689bd75efd
