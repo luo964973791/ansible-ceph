@@ -43,6 +43,7 @@ ceph_stable_release: luminous
 public_network: "10.0.0.0/24"
 cluster_network: "10.0.0.0/24"
 monitor_interface: eth0
+radosgw_interface: eth0
 ```
 
 ### 挂载点
