@@ -357,7 +357,7 @@ monitor_interface: eth0
 
 ## OSD options
 #
-journal_size: 5120 # OSD journal size in MB
+journal_size: 1024 # OSD journal size in MB
 public_network: 172.19.0.0/20
 cluster_network: 172.19.0.0/20
 #osd_mkfs_type: xfs
