@@ -6,6 +6,11 @@ yum install python-pip git -y
 pip install ansible==2.4.2
 pip install --upgrade pip
 pip install --upgrade setuptools
+
+
+
+#这点非常重要
+rm -rf /etc/yum.repos.d/epel*
 cd /root && git clone https://github.com/luo964973791/ansible-ceph.git
 ```
 
