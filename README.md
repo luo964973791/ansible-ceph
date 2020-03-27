@@ -1,4 +1,4 @@
-### ansible-playbook部署ceph
+### ansible-playbook 在Centos7.6 Centos7.7部署ceph
 
 ```javascript
 yum install epel-release -y
@@ -139,32 +139,4 @@ ceph -s
     "active_name": "mon",
     "active_addr": "10.0.0.6:6800/18798",
     "available": true,
-    "standbys": [],
-    "modules": [
-        "dashboard",
-        "status"
-    ],
-    "available_modules": [
-        "balancer",
-        "dashboard",
-        "influx",
-        "localpool",
-        "prometheus",
-        "restful",
-        "selftest",
-        "status",
-        "zabbix"
-    ],
-    "services": {
-        "dashboard": "http://mon:7000/"
-    }
-}
-```
-
-### 清空集群
-```javascript
-cd /root/ansible-ceph && cp infrastructure-playbooks/purge-cluster.yml purge-cluster.yml # 必须copy到项目根目录下
-ansible-playbook -i hosts purge-cluster.yml
-```
-
-
+    "standbys": [
