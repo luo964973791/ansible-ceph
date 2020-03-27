@@ -130,6 +130,12 @@ ceph -s
 ```
 
 ### 添加dashboard
+# k8s如果使用ceph，需要更改镜像。
+image: k8s.gcr.io/kube-controller-manager:v1.18.0
+to
+image: gcr.io/google_containers/hyperkube:v1.18.0
+in
+vi /etc/kubernetes/manifests/kube-controller-manager.yaml
 
 ```javascript
 #ceph mgr module enable dashboard
