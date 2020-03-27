@@ -129,21 +129,98 @@ ceph -s
     pgs:
 ```
 
-### 添加dashboard
-# k8s如果使用ceph，需要更改镜像。
+### k8s使用ceph必须更改镜像.
+
+```javascript
+# 更改 vi /etc/kubernetes/manifests/kube-controller-manager.yaml
 image: k8s.gcr.io/kube-controller-manager:v1.18.0
 to
 image: gcr.io/google_containers/hyperkube:v1.18.0
 in
-vi /etc/kubernetes/manifests/kube-controller-manager.yaml
+```
+
+### k8s挂载ceph
 
 ```javascript
-#ceph mgr module enable dashboard
-#ceph mgr dump
-{
-    "epoch": 10,
-    "active_gid": 4136,
-    "active_name": "mon",
-    "active_addr": "10.0.0.6:6800/18798",
-    "available": true,
-    "standbys": [
+ceph osd pool create k8s 64 64
+```
+
+### 生成加密key
+
+```javascript
+grep key /etc/ceph/ceph.client.admin.keyring |awk '{printf "%s", $NF}'|base64
+```
+
+### 创建ceph的secret
+
+```javascript
+cat ceph-secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ceph-secret
+type: "kubernetes.io/rbd"
+data:
+  key: QVFDL2ZYMWVqRUd3S3hBQTlmSFBuekZSQ3dMYjROdHFtRWI5U0E9PQ==
+```
+
+### 创建存储类
+
+```javascript
+cat ceph-class.yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+   name: ceph-web
+provisioner: kubernetes.io/rbd
+parameters:
+  monitors: 172.27.0.6:6789,172.27.0.7:6789,172.27.0.8:6789
+  adminId: admin
+  adminSecretName: ceph-secret
+  adminSecretNamespace: default
+  pool: k8s
+  userId: admin
+  userSecretName: ceph-secret
+```
+
+### 创建PersistentVolumeClaim
+
+```javascript
+vi pvc.yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: grafana
+  namespace: kube-system
+spec:
+  accessModes:
+     - ReadWriteOnce
+  storageClassName: ceph-web
+  resources:
+    requests:
+      storage: 10G
+```
+
+### 创建pod.yaml
+
+```javascript
+vi nginx-statefulset.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ceph-pod1
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+    command: ["sleep", "60000"]
+    volumeMounts:
+    - name: ceph-rbd-vol1
+      mountPath: /mnt/ceph-rbd-pvc/busybox
+      readOnly: false
+  volumes:
+  - name: ceph-rbd-vol1
+    persistentVolumeClaim:
+      claimName: nginx-web
+```
+
