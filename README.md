@@ -190,15 +190,14 @@ vi pvc.yaml
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
-  name: grafana
-  namespace: kube-system
+  name: ceph-web
 spec:
-  accessModes:
-     - ReadWriteOnce
+  accessModes:     
+    - ReadWriteOnce
   storageClassName: ceph-web
   resources:
     requests:
-      storage: 10G
+      storage: 2Gi
 ```
 
 ### 创建pod.yaml
@@ -208,19 +207,22 @@ vi nginx-statefulset.yaml
 apiVersion: v1
 kind: Pod
 metadata:
-  name: ceph-pod1
+  name: nginx-pod1
+  labels:
+    name: nginx-pod1
 spec:
   containers:
-  - name: nginx
-    image: nginx
-    command: ["sleep", "60000"]
+  - name: nginx-pod1
+    image: nginx:alpine
+    ports:
+    - name: web
+      containerPort: 80
     volumeMounts:
-    - name: ceph-rbd-vol1
-      mountPath: /mnt/ceph-rbd-pvc/busybox
-      readOnly: false
+    - name: ceph-rdb
+      mountPath: /usr/share/nginx/html
   volumes:
-  - name: ceph-rbd-vol1
+  - name: ceph-rdb
     persistentVolumeClaim:
-      claimName: nginx-web
+      claimName: ceph-web
 ```
 
