@@ -236,6 +236,6 @@ spec:
   volumes:
   - name: ceph-rdb
     persistentVolumeClaim:
-      claimName: ceph-web
+      claimName: cephfs-pvc
 ```
 
