@@ -142,7 +142,7 @@ in
 ### k8s挂载cephFS
 
 ```javascript
-mkdir /mycephfs
+mkdir /mnt/cephfs
 #拿到key
 ceph auth get client.admin
 
