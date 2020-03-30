@@ -176,21 +176,6 @@ data:
 
 ```javascript
 cat ceph-class.yaml
-apiVersion: storage.k8s.io/v1
-kind: PersistentVolume
-metadata:
-   name: ceph-web
-provisioner: kubernetes.io/rbd
-parameters:
-  monitors: 172.27.0.6:6789,172.27.0.7:6789,172.27.0.8:6789
-  adminId: admin
-  adminSecretName: ceph-secret
-  adminSecretNamespace: default
-  pool: k8s
-  userId: admin
-  userSecretName: ceph-secret
-
-
 apiVersion: v1
 kind: PersistentVolume
 metadata:
