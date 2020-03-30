@@ -139,10 +139,19 @@ image: gcr.io/google_containers/hyperkube:v1.18.0
 in
 ```
 
-### k8s挂载ceph
+### k8s挂载cephFS
 
 ```javascript
-ceph osd pool create k8s 64 64
+mkdir /mycephfs
+#拿到key
+ceph auth get client.admin
+
+#挂载
+mount -t ceph 172.27.0.6:6789,172.27.0.7:6789,172.27.0.8:6789:/ /mnt/cephfs -o name=admin,secret=AQC/fX1ejEGwKxAA9fHPnzFRCwLb4NtqmEb9SA==
+    
+    
+#vi /etc/fstab
+172.27.0.6:6789,172.27.0.7:6789,172.27.0.8:6789:/ /mnt/cephfs ceph  name=admin,secret=AQD/9AZb41OsJRAAhgKm6sw/LItSdb33wFQRpA==,noatime    0       2
 ```
 
 ### 生成加密key
@@ -159,7 +168,6 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: ceph-secret
-type: "kubernetes.io/rbd"
 data:
   key: QVFDL2ZYMWVqRUd3S3hBQTlmSFBuekZSQ3dMYjROdHFtRWI5U0E9PQ==
 ```
@@ -169,7 +177,7 @@ data:
 ```javascript
 cat ceph-class.yaml
 apiVersion: storage.k8s.io/v1
-kind: StorageClass
+kind: PersistentVolume
 metadata:
    name: ceph-web
 provisioner: kubernetes.io/rbd
@@ -181,6 +189,27 @@ parameters:
   pool: k8s
   userId: admin
   userSecretName: ceph-secret
+
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: cephfs-pv
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteMany
+  cephfs:
+    monitors:
+      - 172.27.0.6:6789
+      - 172.27.0.7:6789
+      - 172.27.0.8:6789
+    user: admin
+    secretRef:
+      name: ceph-secret
+    readOnly: false
+  persistentVolumeReclaimPolicy: Recycle
 ```
 
 ### 创建PersistentVolumeClaim
@@ -190,14 +219,13 @@ vi pvc.yaml
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
-  name: ceph-web
+  name: cephfs-pvc
 spec:
-  accessModes:     
-    - ReadWriteOnce
-  storageClassName: ceph-web
+  accessModes:
+    - ReadWriteMany
   resources:
     requests:
-      storage: 2Gi
+      storage: 10Gi
 ```
 
 ### 创建pod.yaml
