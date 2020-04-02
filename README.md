@@ -147,11 +147,11 @@ mkdir /mnt/cephfs
 ceph auth get client.admin
 
 #挂载
-mount -t ceph 172.27.0.6:6789,172.27.0.7:6789,172.27.0.8:6789:/ /mnt/cephfs -o name=admin,secret=AQC/fX1ejEGwKxAA9fHPnzFRCwLb4NtqmEb9SA==
+ceph-fuse -m 172.27.0.6:6789,172.27.0.7:6789,172.27.0.8:6789 /mnt/ceph
     
     
 #vi /etc/fstab
-172.27.0.6:6789,172.27.0.7:6789,172.27.0.8:6789:/ /mnt/cephfs ceph  name=admin,secret=AQD/9AZb41OsJRAAhgKm6sw/LItSdb33wFQRpA==,noatime    0       2
+none /mnt/ceph fuse.ceph ceph.id=admin,ceph.conf=/etc/ceph/ceph.conf,nonempty,_netdev,defaults 0 0
 ```
 
 ### 生成加密key
