@@ -143,12 +143,8 @@ in
 
 ```javascript
 mkdir /mnt/cephfs
-#拿到key
-ceph auth get client.admin
-
 #挂载
 ceph-fuse -m 172.27.0.6:6789,172.27.0.7:6789,172.27.0.8:6789 /mnt/ceph
-    
     
 #vi /etc/fstab
 none /mnt/ceph fuse.ceph ceph.id=admin,ceph.conf=/etc/ceph/ceph.conf,nonempty,_netdev,defaults 0 0
@@ -163,7 +159,7 @@ grep key /etc/ceph/ceph.client.admin.keyring |awk '{printf "%s", $NF}'|base64
 ### 创建ceph的secret
 
 ```javascript
-cat ceph-secret.yaml
+[root@ ~]# cat ceph-secret.yaml 
 apiVersion: v1
 kind: Secret
 metadata:
@@ -175,7 +171,7 @@ data:
 ### 创建存储类
 
 ```javascript
-cat ceph-class.yaml
+[root@ ~]# cat cephfs-pvc.yaml 
 apiVersion: v1
 kind: PersistentVolume
 metadata:
@@ -200,7 +196,7 @@ spec:
 ### 创建PersistentVolumeClaim
 
 ```javascript
-vi pvc.yaml
+[root@ ~]# cat cephfs-pvc.yaml
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
@@ -216,26 +212,51 @@ spec:
 ### 创建pod.yaml
 
 ```javascript
-vi nginx-statefulset.yaml
-apiVersion: v1
-kind: Pod
+[root@ ~]# cat nginx.yaml
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  name: nginx-pod1
-  labels:
-    name: nginx-pod1
+  name: nginx
 spec:
-  containers:
-  - name: nginx-pod1
-    image: nginx:alpine
-    ports:
-    - name: web
-      containerPort: 80
-    volumeMounts:
-    - name: ceph-rdb
-      mountPath: /usr/share/nginx/html
-  volumes:
-  - name: ceph-rdb
-    persistentVolumeClaim:
-      claimName: cephfs-pvc
+  selector:
+    matchLabels:
+      app: nginx
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 80
+        - name: https
+          containerPort: 443
+        volumeMounts:
+        - name: cephfs-pvc
+          mountPath: /usr/share/nginx/html
+      volumes:
+      - name: cephfs-pvc
+        persistentVolumeClaim:
+          claimName: cephfs-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+spec:
+  type: NodePort
+  ports:
+  - name: nginx
+    port: 80
+    protocol: TCP
+    targetPort: 80
+    nodePort: 32666
+  selector:
+    app: nginx
 ```
 
