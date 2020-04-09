@@ -255,7 +255,7 @@ spec:
     port: 80
     protocol: TCP
     targetPort: 80
-    nodePort: 32666
+    nodePort: 32668
   selector:
     app: nginx
 ```
