@@ -196,7 +196,7 @@ spec:
 ### 创建PersistentVolumeClaim
 
 ```javascript
-[root@ ~]# cat cephfs-pvc.yaml
+[root@ ~]# cat cephfs-pv.yaml
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
