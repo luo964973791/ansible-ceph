@@ -148,55 +148,143 @@ ceph-fuse -m 172.27.0.6:6789,172.27.0.7:6789,172.27.0.8:6789 /mnt/ceph
     
 #vi /etc/fstab
 none /mnt/ceph fuse.ceph ceph.id=admin,ceph.conf=/etc/ceph/ceph.conf,nonempty,_netdev,defaults 0 0
+
+
+
+# 创建命名空间
+kubectl create ns cephfs
+ceph auth get-key client.admin
+
+#拿到上面的值,创建权限.    
+kubectl create secret generic ceph-secret-admin --from-literal=key="AQDyWw9dOUm/FhAA4JCA9PXkPo6+OXpOj9N2ZQ==" -n cephfs
+
 ```
 
-### 生成加密key
+### 创建provisioner
 
 ```javascript
-grep key /etc/ceph/ceph.client.admin.keyring |awk '{printf "%s", $NF}'|base64
-```
-
-### 创建ceph的secret
-
-```javascript
-[root@ ~]# cat ceph-secret.yaml 
-apiVersion: v1
-kind: Secret
+[root@ ~]# vi cephfs-provisioner.yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: ceph-secret
-data:
-  key: QVFDL2ZYMWVqRUd3S3hBQTlmSFBuekZSQ3dMYjROdHFtRWI5U0E9PQ==
-```
-
-### 创建存储类
-
-```javascript
-[root@ ~]# cat cephfs-pvc.yaml 
-apiVersion: v1
-kind: PersistentVolume
+  name: cephfs-provisioner
+  namespace: cephfs
+rules:
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["services"]
+    resourceNames: ["kube-dns","coredns"]
+    verbs: ["list", "get"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: cephfs-pv
+  name: cephfs-provisioner
+subjects:
+  - kind: ServiceAccount
+    name: cephfs-provisioner
+    namespace: cephfs
+roleRef:
+  kind: ClusterRole
+  name: cephfs-provisioner
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cephfs-provisioner
+  namespace: cephfs
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create", "get", "delete"]
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cephfs-provisioner
+  namespace: cephfs
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cephfs-provisioner
+subjects:
+- kind: ServiceAccount
+  name: cephfs-provisioner
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cephfs-provisioner
+  namespace: cephfs
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cephfs-provisioner
+  namespace: cephfs
 spec:
-  capacity:
-    storage: 10Gi
-  accessModes:
-    - ReadWriteMany
-  cephfs:
-    monitors:
-      - 172.27.0.6:6789
-      - 172.27.0.7:6789
-      - 172.27.0.8:6789
-    user: admin
-    secretRef:
-      name: ceph-secret
-    readOnly: false
-  persistentVolumeReclaimPolicy: Recycle
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cephfs-provisioner
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: cephfs-provisioner
+    spec:
+      containers:
+      - name: cephfs-provisioner
+        image: "quay.io/external_storage/cephfs-provisioner:latest"
+        env:
+        - name: PROVISIONER_NAME
+          value: ceph.com/cephfs
+        - name: PROVISIONER_SECRET_NAMESPACE
+          value: cephfs
+        command:
+        - "/usr/local/bin/cephfs-provisioner"
+        args:
+        - "-id=cephfs-provisioner-1"
+      serviceAccount: cephfs-provisioner
 ```
 
-### 创建PersistentVolumeClaim
+### 创建class
 
 ```javascript
-[root@ ~]# cat cephfs-pv.yaml
+[root@ ~]# cat cephfs-class.yaml
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: cephfs
+provisioner: ceph.com/cephfs
+parameters:
+    monitors: 172.27.0.6:6789,172.27.0.7:6789,172.27.0.8:6789
+    adminId: admin
+    adminSecretName: ceph-secret-admin
+    adminSecretNamespace: cephfs
+    claimRoot: /volumes/kubernetes
+```
+
+### pvc
+
+```javascript
+[root@ ~]# cat cephfs-pvc.yaml
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
@@ -206,7 +294,8 @@ spec:
     - ReadWriteMany
   resources:
     requests:
-      storage: 10Gi
+      storage: 8Gi
+  storageClassName: cephfs
 ```
 
 ### 创建pod.yaml
