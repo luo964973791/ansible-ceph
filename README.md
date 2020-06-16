@@ -62,8 +62,6 @@ ceph_mirror: http://mirrors.aliyun.com/ceph
 ceph_stable_key: http://mirrors.aliyun.com/ceph/keys/release.asc
 ceph_stable_release: luminous
 ceph_stable_repo: "{{ ceph_mirror }}/rpm-{{ ceph_stable_release }}"
-fsid: 54d55c64-d458-4208-9592-36ce881cbcb7 ##通过uuidgen生成
-generate_fsid: false
 public_network: "10.0.0.0/24"
 cluster_network: "10.0.0.0/24"
 monitor_interface: eth0
@@ -78,7 +76,6 @@ vi /root/ansible-ceph/group_vars/osds.yml
 devices:
   - '/dev/vdb'
 osd_scenario: collocated
-osd_objectstore: bluestore
 ```
 
 ### 修改配置
@@ -88,17 +85,17 @@ cd /root/ansible-ceph && cp site.yml.sample site.yml
 vi site.yml
 - hosts:
   - mons
-#  - agents
+  - agents
   - osds
   - mdss
-#  - rgws
-#  - nfss
-#  - restapis
-#  - rbdmirrors
+  - rgws
+  - nfss
+  - restapis
+  - rbdmirrors
   - clients
   - mgrs
-#  - iscsigws
-#  - iscsi-gws
+  - iscsigws
+  - iscsi-gws
 ```
 
 ### 安装ceph
@@ -110,6 +107,12 @@ cd /root/ansible-ceph && ansible-playbook -i hosts site.yml
 ### 检查状态.
 
 ```javascript
+#更改参数
+ceph osd pool set cephfs_data pg_num 64
+ceph osd pool set cephfs_metadata pg_num 64
+ceph osd pool set cephfs_metadata pgp_num 64
+ceph osd pool set cephfs_data pgp_num 64
+
 #检查
 ceph health detail
 ceph -s
