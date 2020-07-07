@@ -62,7 +62,7 @@ ceph_mirror: http://mirrors.aliyun.com/ceph
 ceph_stable_key: http://mirrors.aliyun.com/ceph/keys/release.asc
 ceph_stable_release: luminous
 ceph_stable_repo: "{{ ceph_mirror }}/rpm-{{ ceph_stable_release }}"
-public_network: "10.0.0.0/24"
+public_network: "192.168.0.0/16"
 cluster_network: "10.0.0.0/24"
 monitor_interface: eth0
 journal_size: 1024
