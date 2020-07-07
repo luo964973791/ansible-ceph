@@ -38,7 +38,7 @@ dummy:
 # Note: This scenario uses the ceph-disk tool to provision OSDs
 
 devices:
-  - /dev/vdb
+  - /dev/sdb
 #  - /dev/sdc
 #  - /dev/sdd
 #  - /dev/sde

@@ -3,17 +3,17 @@
 
 - hosts:
   - mons
-#  - agents
+  - agents
   - osds
   - mdss
-#  - rgws
-#  - nfss
-#  - restapis
-#  - rbdmirrors
+  - rgws
+  - nfss
+  - restapis
+  - rbdmirrors
   - clients
   - mgrs
-#  - iscsigws
-#  - iscsi-gws # for backward compatibility only!
+  - iscsigws
+  - iscsi-gws # for backward compatibility only!
 
   gather_facts: false
 

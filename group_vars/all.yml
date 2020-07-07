@@ -337,7 +337,7 @@ generate_fsid: false
 # These variables must be defined at least in all.yml and overrided if needed (inventory host file or group_vars/*.yml).
 # Eg. If you want to specify for each monitor which address the monitor will bind to you can set it in your **inventory host file** by using 'monitor_address' variable.
 # Preference will go to monitor_address if both monitor_address and monitor_interface are defined.
-monitor_interface: eth0
+monitor_interface: ens33
 #monitor_address: 0.0.0.0
 #monitor_address_block: subnet
 # set to either ipv4 or ipv6, whichever your network is using
@@ -357,8 +357,8 @@ monitor_interface: eth0
 
 ## OSD options
 #
-journal_size: 1024 # OSD journal size in MB
-public_network: 172.19.0.0/20
+#journal_size: 5120 # OSD journal size in MB
+public_network: 172.18.0.0/20
 cluster_network: 172.19.0.0/20
 #osd_mkfs_type: xfs
 #osd_mkfs_options_xfs: -f -i size=2048
