@@ -62,8 +62,8 @@ ceph_mirror: http://mirrors.aliyun.com/ceph
 ceph_stable_key: http://mirrors.aliyun.com/ceph/keys/release.asc
 ceph_stable_release: luminous
 ceph_stable_repo: "{{ ceph_mirror }}/rpm-{{ ceph_stable_release }}"
-public_network: "192.168.0.0/16"
-cluster_network: "10.0.0.0/24"
+public_network: "192.168.0.0/16"  #一定必须是内网的网段否则会报错
+cluster_network: "10.0.0.0/24"    #一定必须是内网的网段否则会报错.
 monitor_interface: eth0
 journal_size: 1024
 radosgw_interface: eth0
