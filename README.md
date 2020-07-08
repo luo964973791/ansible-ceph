@@ -132,16 +132,6 @@ ceph -s
     pgs:
 ```
 
-### k8s使用ceph必须更改镜像.
-
-```javascript
-# 更改 vi /etc/kubernetes/manifests/kube-controller-manager.yaml
-image: k8s.gcr.io/kube-controller-manager:v1.18.0
-to
-image: gcr.io/google_containers/hyperkube:v1.18.0
-in
-```
-
 ### k8s挂载cephFS
 
 ```javascript
@@ -166,105 +156,12 @@ kubectl create secret generic ceph-secret-admin --from-literal=key="AQDyWw9dOUm/
 ### 创建provisioner
 
 ```javascript
-[root@ ~]# vi cephfs-provisioner.yaml
-kind: ClusterRole
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: cephfs-provisioner
-  namespace: cephfs
-rules:
-  - apiGroups: [""]
-    resources: ["persistentvolumes"]
-    verbs: ["get", "list", "watch", "create", "delete"]
-  - apiGroups: [""]
-    resources: ["persistentvolumeclaims"]
-    verbs: ["get", "list", "watch", "update"]
-  - apiGroups: ["storage.k8s.io"]
-    resources: ["storageclasses"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: [""]
-    resources: ["events"]
-    verbs: ["create", "update", "patch"]
-  - apiGroups: [""]
-    resources: ["services"]
-    resourceNames: ["kube-dns","coredns"]
-    verbs: ["list", "get"]
----
-kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: cephfs-provisioner
-subjects:
-  - kind: ServiceAccount
-    name: cephfs-provisioner
-    namespace: cephfs
-roleRef:
-  kind: ClusterRole
-  name: cephfs-provisioner
-  apiGroup: rbac.authorization.k8s.io
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: cephfs-provisioner
-  namespace: cephfs
-rules:
-  - apiGroups: [""]
-    resources: ["secrets"]
-    verbs: ["create", "get", "delete"]
-  - apiGroups: [""]
-    resources: ["endpoints"]
-    verbs: ["get", "list", "watch", "create", "update", "patch"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: cephfs-provisioner
-  namespace: cephfs
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: cephfs-provisioner
-subjects:
-- kind: ServiceAccount
-  name: cephfs-provisioner
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: cephfs-provisioner
-  namespace: cephfs
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: cephfs-provisioner
-  namespace: cephfs
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: cephfs-provisioner
-  strategy:
-    type: Recreate
-  template:
-    metadata:
-      labels:
-        app: cephfs-provisioner
-    spec:
-      containers:
-      - name: cephfs-provisioner
-        image: "quay.io/external_storage/cephfs-provisioner:latest"
-        env:
-        - name: PROVISIONER_NAME
-          value: ceph.com/cephfs
-        - name: PROVISIONER_SECRET_NAMESPACE
-          value: cephfs
-        command:
-        - "/usr/local/bin/cephfs-provisioner"
-        args:
-        - "-id=cephfs-provisioner-1"
-      serviceAccount: cephfs-provisioner
+git clone https://github.com/kubernetes-incubator/external-storage.git
+cd external-storage/ceph/cephfs/deploy
+NAMESPACE=cephfs
+sed -r -i "s/namespace: [^ ]+/namespace: $NAMESPACE/g" ./rbac/*.yaml
+sed -r -i "N;s/(name: PROVISIONER_SECRET_NAMESPACE.*\n[[:space:]]*)value:.*/\1value: $NAMESPACE/" ./rbac/deployment.yaml
+kubectl -n $NAMESPACE apply -f ./rbac
 ```
 
 ### 创建class
