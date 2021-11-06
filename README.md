@@ -1,4 +1,4 @@
-### ansible-playbook 在Centos8部署ceph
+### ansible-playbook 在Centos8部署ceph6.0稳定版本.
 
 ```javascript
 # 在部署之前全部更改hosts.
