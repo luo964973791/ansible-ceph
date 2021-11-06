@@ -55,7 +55,7 @@ vi /usr/sbin/ceph-volume-systemd
 
 
 vi /usr/sbin/ceph-volume
-#! /usr/bin/env python3  #第一行更改为这个，#第一行更改为这个，所有服务器都需要更改
+#! /usr/bin/env python3  #第一行更改为这个，所有服务器都需要更改
 
 
 
