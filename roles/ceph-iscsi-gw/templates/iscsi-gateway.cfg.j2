@@ -5,7 +5,8 @@
 
 [config]
 cluster_name = {{ cluster }}
-gateway_keyring = {{ cluster }}.client.admin.keyring
+
+pool = {{ iscsi_pool_name }}
 
 # API settings.
 # The API supports a number of options that allow you to tailor it to your
@@ -24,4 +25,6 @@ api_user = {{ api_user }}
 api_password = {{ api_password }}
 api_port = {{ api_port }}
 loop_delay = {{ loop_delay }}
+{% if trusted_ip_list is defined %}
 trusted_ip_list = {{ trusted_ip_list }}
+{% endif %}

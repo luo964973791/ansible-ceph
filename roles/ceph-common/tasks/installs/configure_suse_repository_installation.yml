@@ -1,5 +1,4 @@
 ---
 - name: include suse_obs_repository.yml
-  include: suse_obs_repository.yml
-  when:
-    - ceph_repository == 'obs'
+  include_tasks: suse_obs_repository.yml
+  when: ceph_repository == 'obs'

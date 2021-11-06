@@ -1,7 +1,7 @@
 #jinja2: trim_blocks: "true", lstrip_blocks: "true"
 # {{ ansible_managed }}
 
-{% if ceph_nfs_dynamic_exports and not ceph_nfs_rados_backend %}
+{% if ceph_nfs_dynamic_exports | bool and not ceph_nfs_rados_backend | bool %}
 %include /etc/ganesha/export.d/INDEX.conf
 {% endif %}
 
@@ -10,42 +10,41 @@ NFS_Core_Param
 {% if ceph_nfs_bind_addr is defined %}
        Bind_Addr={{ ceph_nfs_bind_addr }};
 {% endif %}
+{{ ganesha_core_param_overrides | default(None) }}
 }
 
-{% if ceph_nfs_disable_caching or nfs_file_gw %}
+{% if ceph_nfs_disable_caching | bool or nfs_file_gw | bool %}
 EXPORT_DEFAULTS {
 	Attr_Expiration_Time = 0;
 }
 
 CACHEINODE {
-	Dir_Max = 1;
 	Dir_Chunk = 0;
-
-	Cache_FDs = false;
 
 	NParts = 1;
 	Cache_Size = 1;
 }
 {% endif %}
 
-{% if ceph_nfs_rados_backend %}
+{% if ceph_nfs_rados_backend | bool %}
 RADOS_URLS {
    ceph_conf = '/etc/ceph/{{ cluster }}.conf';
    userid = "{{ ceph_nfs_ceph_user }}";
 }
-%url rados://{{ cephfs_data }}/{{ ceph_nfs_rados_export_index }}
+%url rados://{{ cephfs_data_pool.name }}/{{ ceph_nfs_rados_export_index }}
 
 NFSv4 {
 	RecoveryBackend = 'rados_kv';
+	IdmapConf = "{{ ceph_nfs_idmap_conf }}";
 }
 RADOS_KV {
 	ceph_conf = '/etc/ceph/{{ cluster }}.conf';
 	userid = "{{ ceph_nfs_ceph_user }}";
-	pool = "{{ cephfs_data }}";
+	pool = "{{ cephfs_data_pool.name }}";
 }
 {% endif %}
 
-{% if nfs_file_gw %}
+{% if nfs_file_gw | bool %}
 EXPORT
 {
 	Export_id={{ ceph_nfs_ceph_export_id }};
@@ -60,7 +59,9 @@ EXPORT
 
 	Transports = TCP;
 
-	SecType = sys,krb5,krb5i,krb5p;
+	SecType = {{ ceph_nfs_ceph_sectype }};
+
+	Squash = {{ ceph_nfs_ceph_squash }};
 
 	Attr_Expiration_Time = 0;
 
@@ -72,7 +73,7 @@ EXPORT
         {{ ganesha_ceph_export_overrides | default(None) }}
 }
 {% endif %}
-{% if nfs_obj_gw %}
+{% if nfs_obj_gw | bool %}
 EXPORT
 {
 	Export_id={{ ceph_nfs_rgw_export_id }};
@@ -87,7 +88,9 @@ EXPORT
 
 	Transports = TCP;
 
-	SecType = sys,krb5,krb5i,krb5p;
+	SecType = {{ ceph_nfs_rgw_sectype }};
+
+	Squash = {{ ceph_nfs_rgw_squash }};
 
 	FSAL {
 		Name = RGW;

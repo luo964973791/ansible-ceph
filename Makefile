@@ -7,17 +7,19 @@ NAME = ceph-ansible
 # Examples:
 #
 #  A "git describe" value of "v2.2.0beta1" would create an NVR
-#  "ceph-ansible-2.2.0-0.beta1.1.el7"
+#  "ceph-ansible-2.2.0-0.beta1.1.el8"
 #
 #  A "git describe" value of "v2.2.0rc1" would create an NVR
-#  "ceph-ansible-2.2.0-0.rc1.1.el7"
+#  "ceph-ansible-2.2.0-0.rc1.1.el8"
 #
 #  A "git describe" value of "v2.2.0rc1-1-gc465f85" would create an NVR
-#  "ceph-ansible-2.2.0-0.rc1.1.gc465f85.el7"
+#  "ceph-ansible-2.2.0-0.rc1.1.gc465f85.el8"
 #
 #  A "git describe" value of "v2.2.0" creates an NVR
-#  "ceph-ansible-2.2.0-1.el7"
+#  "ceph-ansible-2.2.0-1.el8"
 
+DIST ?= "el8"
+MOCK_CONFIG ?= "epel-8-x86_64"
 TAG := $(shell git describe --tags --abbrev=0 --match 'v*')
 VERSION := $(shell echo $(TAG) | sed 's/^v//')
 COMMIT := $(shell git rev-parse HEAD)
@@ -29,6 +31,11 @@ RELEASE := $(shell git describe --tags --match 'v*' \
 ifeq ($(VERSION),$(RELEASE))
   RELEASE = 1
 endif
+ifneq (,$(findstring alpha,$(VERSION)))
+    ALPHA := $(shell echo $(VERSION) | sed 's/.*alpha/alpha/')
+    RELEASE := 0.$(ALPHA).$(RELEASE)
+    VERSION := $(subst $(ALPHA),,$(VERSION))
+endif
 ifneq (,$(findstring beta,$(VERSION)))
     BETA := $(shell echo $(VERSION) | sed 's/.*beta/beta/')
     RELEASE := 0.$(BETA).$(RELEASE)
@@ -39,7 +46,14 @@ ifneq (,$(findstring rc,$(VERSION)))
     RELEASE := 0.$(RC).$(RELEASE)
     VERSION := $(subst $(RC),,$(VERSION))
 endif
-NVR := $(NAME)-$(VERSION)-$(RELEASE).el7
+
+ifneq (,$(shell echo $(VERSION) | grep [a-zA-Z]))
+    # If we still have alpha characters in our Git tag string, we don't know
+    # how to translate that into a sane RPM version/release. Bail out.
+    $(error cannot translate Git tag version $(VERSION) to an RPM NVR)
+endif
+
+NVR := $(NAME)-$(VERSION)-$(RELEASE).$(DIST)
 
 all: srpm
 
@@ -70,12 +84,12 @@ srpm: dist spec
 	  --define "_topdir ." \
 	  --define "_sourcedir ." \
 	  --define "_srcrpmdir ." \
-	  --define "dist .el7"
+	  --define "dist .$(DIST)"
 
 rpm: dist srpm
-	mock -r epel-7-x86_64 rebuild $(NVR).src.rpm \
+	mock -r $(MOCK_CONFIG) rebuild $(NVR).src.rpm \
 	  --resultdir=. \
-	  --define "dist .el7"
+	  --define "dist .$(DIST)"
 
 tag:
 	$(eval BRANCH := $(shell git rev-parse --abbrev-ref HEAD))

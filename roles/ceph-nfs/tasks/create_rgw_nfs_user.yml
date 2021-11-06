@@ -1,31 +1,23 @@
 ---
-- name: set_fact docker_exec_cmd_nfs
-  set_fact:
-    docker_exec_cmd_nfs: "docker exec ceph-mon-{{ hostvars[groups[mon_group_name][0]]['ansible_hostname'] }}"
-  when:
-    - containerized_deployment
-
-- name: create rgw nfs user
-  command: "{{ docker_exec_cmd_nfs | default('') }} radosgw-admin --cluster {{ cluster }} user create --uid={{ ceph_nfs_rgw_user }} --display-name='RGW NFS User'"
+- name: create rgw nfs user "{{ ceph_nfs_rgw_user }}"
+  radosgw_user:
+    name: "{{ ceph_nfs_rgw_user }}"
+    cluster: "{{ cluster }}"
+    display_name: "RGW NFS User"
+    access_key: "{{ ceph_nfs_rgw_access_key | default(omit) }}"
+    secret_key: "{{ ceph_nfs_rgw_secret_key | default(omit) }}"
   run_once: true
-  register: rgwuser
+  register: rgw_nfs_user
   changed_when: false
   delegate_to: "{{ groups[mon_group_name][0] }}"
-  when:
-    - nfs_obj_gw
+  when: nfs_obj_gw | bool
+  environment:
+    CEPH_CONTAINER_IMAGE: "{{ ceph_docker_registry + '/' + ceph_docker_image + ':' + ceph_docker_image_tag if containerized_deployment | bool else None }}"
+    CEPH_CONTAINER_BINARY: "{{ container_binary }}"
 
-- name: set_fact ceph_nfs_rgw_access_key
+- name: set_fact ceph_nfs_rgw_access_key and ceph_nfs_rgw_secret_key
   set_fact:
-    ceph_nfs_rgw_access_key: "{{ (rgwuser.stdout | from_json)['keys'][0]['access_key'] }}"
+    ceph_nfs_rgw_access_key: "{{ (rgw_nfs_user.stdout | from_json)['keys'][0]['access_key'] }}"
+    ceph_nfs_rgw_secret_key: "{{ (rgw_nfs_user.stdout | from_json)['keys'][0]['secret_key'] }}"
   delegate_to: "{{ groups[mon_group_name][0] }}"
-  when:
-    - nfs_obj_gw
-    - ceph_nfs_rgw_access_key is not defined
-
-- name: set_fact ceph_nfs_rgw_secret_key
-  set_fact:
-    ceph_nfs_rgw_secret_key: "{{(rgwuser.stdout | from_json)['keys'][0]['secret_key']}}"
-  delegate_to: "{{ groups[mon_group_name][0] }}"
-  when:
-    - nfs_obj_gw
-    - ceph_nfs_rgw_secret_key is not defined
+  when: nfs_obj_gw | bool

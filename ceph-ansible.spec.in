@@ -6,7 +6,6 @@ Version:        @VERSION@
 Release:        @RELEASE@%{?dist}
 Summary:        Ansible playbooks for Ceph
 # Some files have been copied from Ansible (GPLv3+). For example:
-#  library/ceph_facts
 #  plugins/actions/config_template.py
 #  roles/ceph-common/plugins/actions/config_template.py
 License:        ASL 2.0 and GPLv3+
@@ -16,11 +15,16 @@ Obsoletes:      ceph-iscsi-ansible <= 1.5
 
 BuildArch:      noarch
 
-BuildRequires: ansible >= 2.4.2.0
-BuildRequires: python2-devel
+BuildRequires: ansible >= 2.9
+Requires: ansible >= 2.9
 
-Requires: ansible >= 2.4.2.0
-Requires: python-netaddr
+%if 0%{?rhel} == 7
+BuildRequires: python2-devel
+Requires: python2-netaddr
+%else
+BuildRequires: python3-devel
+Requires: python3-netaddr
+%endif
 
 %description
 Ansible playbooks for Ceph
@@ -33,21 +37,16 @@ Ansible playbooks for Ceph
 %install
 mkdir -p %{buildroot}%{_datarootdir}/ceph-ansible
 
-for f in ansible.cfg *.yml *.sample group_vars roles library plugins infrastructure-playbooks; do
+for f in ansible.cfg *.yml *.sample group_vars roles library module_utils plugins infrastructure-playbooks; do
   cp -a $f %{buildroot}%{_datarootdir}/ceph-ansible
 done
 
 pushd %{buildroot}%{_datarootdir}/ceph-ansible
-  # Strip coreos files.
-  # These are unneeded on RPM-based distros, and the playbooks download random
-  # things from around the internet.
-  rm -r roles/ceph-common-coreos
-  rm group_vars/common-coreoss.yml.sample
   # These untested playbooks are too unstable for users.
   rm -r infrastructure-playbooks/untested-by-ci
   %if ! 0%{?fedora} && ! 0%{?centos}
     # remove ability to install ceph community version
-    rm roles/ceph-common/tasks/installs/redhat_{community,custom,dev}_repository.yml
+    rm roles/ceph-common/tasks/installs/redhat_{community,dev}_repository.yml
     # Ship only the Red Hat Ceph Storage config (overwrite upstream settings)
     cp group_vars/rhcs.yml.sample group_vars/all.yml.sample
   %endif

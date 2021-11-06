@@ -7,7 +7,7 @@ set -euo pipefail
 #############
 
 basedir=$(dirname "$0")
-do_not_generate="ceph-common$|ceph-docker-common$" # pipe separated list of roles we don't want to generate sample file, MUST end with '$', e.g: 'foo$|bar$'
+do_not_generate="(ceph-common|ceph-container-common|ceph-fetch-keys)$" # pipe separated list of roles we don't want to generate sample file, MUST end with '$', e.g: 'foo$|bar$'
 
 
 #############
@@ -62,14 +62,14 @@ for role in "$basedir"/roles/ceph-*; do
 
   if [[ $rolename == "ceph-defaults" ]]; then
     output="all.yml.sample rhcs.yml.sample"
-  elif [[ $rolename == "ceph-agent" ]]; then
-    output="agent.yml.sample"
   elif [[ $rolename == "ceph-fetch-keys" ]]; then
     output="ceph-fetch-keys.yml.sample"
   elif [[ $rolename == "ceph-rbd-mirror" ]]; then
     output="rbdmirrors.yml.sample"
   elif [[ $rolename == "ceph-iscsi-gw" ]]; then
     output="iscsigws.yml.sample"
+  elif [[ $rolename == "ceph-rgw-loadbalancer" ]]; then
+    output="rgwloadbalancers.yml.sample"
   else
     output="${rolename:5}s.yml.sample"
   fi

@@ -1,96 +1,39 @@
 ### ansible-playbook 在Centos8部署ceph
 
 ```javascript
-# 在部署之前全部更改hosts,比如
-hostnamectl set-hostname node1
-hostnamectl set-hostname node2
-hostnamectl set-hostname node3
+# 在部署之前全部更改hosts.
+[root@node1 ~]# cat /etc/hosts
+127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
+::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
+172.27.0.6 node1
+172.27.0.7 node2
+172.27.0.8 node3
 
-yum install epel-release -y
-yum install python3-pip git -y
-pip3 install --upgrade pip
-pip3 install --upgrade setuptools
-cd /root && git clone https://github.com/luo964973791/ansible-ceph.git
-cd ansible-ceph
-pip3 install -r requirements.txt
-```
-
-### 准备hosts文件
-
-```javascript
-vi /root/ansible-ceph/hosts
-[mons]
-172.27.0.6
-172.27.0.7
-172.27.0.8
-
-[mgrs]
-172.27.0.6
-172.27.0.7
-172.27.0.8
-
-[osds]
-172.27.0.6
-172.27.0.7
-172.27.0.8
-
-[rgws]
-172.27.0.6
-172.27.0.7
-172.27.0.8
-
-[mdss]
-172.27.0.6
-172.27.0.7
-172.27.0.8
-
-[grafana-server]
-172.27.0.6
-172.27.0.7
-172.27.0.8
-
-[clients]
-172.27.0.6
-172.27.0.7
-172.27.0.8
+#安装依赖.
+yum -y install vim-enhanced lrzsz tree bash-completion net-tools wget bzip2 lsof zip unzip gcc make gcc-c++ glibc glibc-devel pcre pcre-devel openssl openssl-devel systemd-devel zlib-devel chrony jq && yum clean all && yum makecache
+yum install python36 -y && ln -s /usr/bin/pip3.6 /usr/bin/pip
+pip install netaddr pyyaml
 ```
 
 ### 修改复制文件
 
 ```javascript
-cd /root/ansible-ceph
-cp group_vars/clients.yml.sample group_vars/clients.yml
-cp group_vars/mons.yml.sample group_vars/mons.yml
-cp group_vars/mgrs.yml.sample group_vars/mgrs.yml
-cp group_vars/rgws.yml.sample group_vars/rgws.yml
-cp group_vars/all.yml.sample group_vars/all.yml
-cp group_vars/osds.yml.sample group_vars/osds.yml
-cp site.yml.sample site.yml
-
-vi group_vars/all.yml
-# cd ceph-ansible/group_vars/
-# mv all.yml.sample all.yml
+cd ceph-ansible/group_vars/
 # grep -Ev '^#|^$' all.yml
 ---
 dummy:
-ceph_repository_type: repository
 ceph_origin: repository
 ceph_repository: community
-ceph_mirror: https://mirrors.tuna.tsinghua.edu.cn/ceph/
-ceph_stable_key: https://mirrors.tuna.tsinghua.edu.cn/ceph/keys/release.asc
-ceph_stable_release: octopus
-ceph_stable_repo: https://mirrors.tuna.tsinghua.edu.cn/ceph/rpm-15.2.7/el7/
-monitor_interface: eth0
-public_network: 172.27.0.0/24
-cluster_network: 172.16.0.0/16
-osd_objectstore: bluestore
-radosgw_civetweb_port: 8080
-radosgw_interface: eth0
-dashboard_enabled: True
-dashboard_admin_user: admin
-dashboard_admin_password: admin
-grafana_admin_user: admin
-grafana_admin_password: admin
+ceph_mirror: http://mirrors.aliyun.com/ceph
+ceph_stable_key: http://mirrors.aliyun.com/ceph/keys/release.asc
+ceph_stable_release: pacific
+ceph_stable_repo: "{{ ceph_mirror }}/rpm-{{ ceph_stable_release }}"
+cephx: true
+monitor_interface: eth0          #根据自己的网卡名更改.
+public_network: 172.27.0.0/24    #注意这个地方和下面的public_network在生产环境要设置不一样,这里是测试就设置的一样.
+cluster_network: "{{ public_network }}"
+radosgw_interface: eth0          #根据自己的网卡名更改.
+dashboard_enabled: False
 ```
 
 ### 挂载点
@@ -98,34 +41,28 @@ grafana_admin_password: admin
 ```javascript
 vi /root/ansible-ceph/group_vars/osds.yml
 devices:
-  - '/dev/vdb'
-osd_scenario: collocated
-```
-
-### 修改配置
-
-```javascript
-cd /root/ansible-ceph && cp site.yml.sample site.yml
-vi site.yml
-- hosts:
-  - mons
-  - agents
-  - osds
-  - mdss
-  - rgws
-  - nfss
-  - restapis
-  - rbdmirrors
-  - clients
-  - mgrs
-  - iscsigws
-  - iscsi-gws
+  - '/dev/vdb'            #根据自己的网ceph数据磁盘进行更改.
 ```
 
 ### 安装ceph
 
 ```javascript
 cd /root/ansible-ceph && ansible-playbook -i hosts site.yml
+#安装ceph会报错.
+vi /usr/sbin/ceph-volume-systemd
+#! /usr/bin/env python3   #第一行更改为这个，所有服务器都需要更改
+
+
+
+vi /usr/sbin/ceph-volume
+#! /usr/bin/env python3  #第一行更改为这个，#第一行更改为这个，所有服务器都需要更改
+
+
+
+#再进行安装.
+ansible-playbook -i hosts site.yml
+ceph config set mon auth_allow_insecure_global_id_reclaim false  #HEALTH_WARN解决方法.
+
 ```
 
 ### 检查状态.

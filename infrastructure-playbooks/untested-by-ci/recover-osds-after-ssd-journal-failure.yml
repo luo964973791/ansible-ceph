@@ -73,13 +73,15 @@
     with_items:
         osds_dir_stat.results
     when:
-      - osds_dir_stat is defined 
+      - osds_dir_stat is defined | bool
       - item.stat.exists == false
 
   - name: install sgdisk(gdisk)
     package:
       name: gdisk
       state: present
+    register: result
+    until: result is succeeded
     
   - name: get osd(s) journal uuid
     command: cat "/var/lib/ceph/osd/{{ cluster }}-{{ item.1.osd_id }}/journal_uuid"
@@ -94,24 +96,20 @@
       --typecode={{ item.item[1].index }}:{{ journal_typecode }} 
       --partition-guid={{ item.item[1].index }}:{{ item.stdout }} 
       --mbrtogpt -- {{ item.item[0].device_name }}
-    with_items:
-      - "{{ osds_uuid.results }}"
+    with_items: "{{ osds_uuid.results }}"
 
   - name: stop osd(s) service
     service:
       name: "ceph-osd@{{ item.item[1].osd_id }}"
       state: stopped
-    with_items:
-      - "{{ osds_uuid.results }}"
+    with_items: "{{ osds_uuid.results }}"
 
   - name: reinitialize osd(s) journal in new ssd
     command: ceph-osd -i {{ item.item[1].osd_id }} --mkjournal --cluster {{ cluster }}
-    with_items:
-      - "{{ osds_uuid.results }}"
+    with_items: "{{ osds_uuid.results }}"
  
   - name: start osd(s) service
     service:
       name: "ceph-osd@{{ item.item[1].osd_id }}"
       state: started
-    with_items:
-       - "{{ osds_uuid.results }}"
+    with_items: "{{ osds_uuid.results }}"

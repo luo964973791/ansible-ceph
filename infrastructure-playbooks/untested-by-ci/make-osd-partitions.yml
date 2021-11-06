@@ -27,8 +27,7 @@
     journal_typecode: 45b0969e-9b03-4f30-b4c6-b4b80ceff106
     data_typecode: 4fbd7e29-9d25-41b8-afd0-062c0ceff05d
     devices: []
-  hosts:
-  - "{{ osd_group_name }}"
+  hosts: "{{ osd_group_name }}"
 
   tasks:
 
@@ -36,19 +35,21 @@
     include_vars: "{{ item }}"
     with_first_found:
       - files:
-          - "host_vars/{{ ansible_hostname }}.yml"
+          - "host_vars/{{ ansible_facts['hostname'] }}.yml"
           - "host_vars/default.yml"
         skip: true
 
   - name: exit playbook, if devices not defined
     fail:
-      msg: "devices must be define in host_vars/default.yml or host_vars/{{ ansible_hostname }}.yml"
+      msg: "devices must be define in host_vars/default.yml or host_vars/{{ ansible_facts['hostname'] }}.yml"
     when: devices is not defined
 
   - name: install sgdisk(gdisk)
     package:
       name: gdisk
       state: present
+    register: result
+    until: result is succeeded
 
   - name: erase all previous partitions(dangerous!!!)
     shell: sgdisk --zap-all -- /dev/{{item.device_name}}
@@ -66,14 +67,12 @@
   - set_fact:
       owner: 167
       group: 167
-    when:
-      - ansible_os_family == "RedHat"
+    when: ansible_facts['os_family'] == "RedHat"
   
   - set_fact:
       owner: 64045
       group: 64045
-    when:
-      - ansible_os_family == "Debian"
+    when: ansible_facts['os_family'] == "Debian"
 
   - name: change partitions ownership
     file:
@@ -94,6 +93,5 @@
     with_subelements:
       - "{{ devices }}"
       - partitions
-    when:
-      item.0.device_name | match('/dev/(cciss/c[0-9]d[0-9]|nvme[0-9]n[0-9]){1,2}$')
+    when: item.0.device_name | match('/dev/(cciss/c[0-9]d[0-9]|nvme[0-9]n[0-9]){1,2}$')
 ...

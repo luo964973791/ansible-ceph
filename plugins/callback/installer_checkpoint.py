@@ -23,15 +23,18 @@ class CallbackModule(CallbackBase):
         installer_phases = [
             'installer_phase_ceph_mon',
             'installer_phase_ceph_mgr',
-            'installer_phase_ceph_agent',
             'installer_phase_ceph_osd',
             'installer_phase_ceph_mds',
             'installer_phase_ceph_rgw',
             'installer_phase_ceph_nfs',
-            'installer_phase_ceph_restapi',
             'installer_phase_ceph_rbdmirror',
             'installer_phase_ceph_client',
             'installer_phase_ceph_iscsi_gw',
+            'installer_phase_ceph_rgw_loadbalancer',
+            'installer_phase_ceph_dashboard',
+            'installer_phase_ceph_grafana',
+            'installer_phase_ceph_node_exporter',
+            'installer_phase_ceph_crash',
         ]
 
         # Define the attributes of the installer phases
@@ -43,10 +46,6 @@ class CallbackModule(CallbackBase):
             'installer_phase_ceph_mgr': {
                 'title': 'Install Ceph Manager',
                 'playbook': 'roles/ceph-mgr/tasks/main.yml'
-            },
-            'installer_phase_ceph_agent': {
-                'title': 'Install Ceph Agent',
-                'playbook': 'roles/ceph-agent/tasks/main.yml'
             },
             'installer_phase_ceph_osd': {
                 'title': 'Install Ceph OSD',
@@ -64,10 +63,6 @@ class CallbackModule(CallbackBase):
                 'title': 'Install Ceph NFS',
                 'playbook': 'roles/ceph-nfs/tasks/main.yml'
             },
-            'installer_phase_ceph_restapi': {
-                'title': 'Install Ceph REST API',
-                'playbook': 'roles/ceph-restapi/tasks/main.yml'
-            },
             'installer_phase_ceph_rbdmirror': {
                 'title': 'Install Ceph RBD Mirror',
                 'playbook': 'roles/ceph-rbd-mirror/tasks/main.yml'
@@ -79,6 +74,26 @@ class CallbackModule(CallbackBase):
             'installer_phase_ceph_iscsi_gw': {
                 'title': 'Install Ceph iSCSI Gateway',
                 'playbook': 'roles/ceph-iscsi-gw/tasks/main.yml'
+            },
+            'installer_phase_ceph_rgw_loadbalancer': {
+                'title': 'Install Ceph RGW LoadBalancer',
+                'playbook': 'roles/ceph-rgw-loadbalancer/tasks/main.yml'
+            },
+            'installer_phase_ceph_dashboard': {
+                'title': 'Install Ceph Dashboard',
+                'playbook': 'roles/ceph-dashboard/tasks/main.yml'
+            },
+            'installer_phase_ceph_grafana': {
+                'title': 'Install Ceph Grafana',
+                'playbook': 'roles/ceph-grafana/tasks/main.yml'
+            },
+            'installer_phase_ceph_node_exporter': {
+                'title': 'Install Ceph Node Exporter',
+                'playbook': 'roles/ceph-node-exporter/tasks/main.yml'
+            },
+            'installer_phase_ceph_crash': {
+                'title': 'Install Ceph Crash',
+                'playbook': 'roles/ceph-crash/tasks/main.yml'
             },
         }
 
