@@ -47,7 +47,7 @@ devices:
 ### 安装ceph
 
 ```javascript
-cd /root/ansible-ceph && ansible-playbook -i hosts site.yml
+cd /root/ansible-ceph && pip3 install -r requirements.txt && ansible-playbook -i hosts site.yml
 #安装ceph会报错.
 vi /usr/sbin/ceph-volume-systemd
 #! /usr/bin/env python3   #第一行更改为这个，所有服务器都需要更改
