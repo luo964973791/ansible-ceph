@@ -11,7 +11,7 @@
 
 #安装依赖.
 yum -y install vim-enhanced lrzsz tree bash-completion net-tools wget bzip2 lsof zip unzip gcc make gcc-c++ glibc glibc-devel pcre pcre-devel openssl openssl-devel systemd-devel zlib-devel chrony jq && yum clean all && yum makecache
-yum install python36 -y && ln -s /usr/bin/pip3.6 /usr/bin/pip
+yum install python36 -y && pip3 install --upgrade pip && pip3 install --upgrade setuptools
 pip install netaddr pyyaml
 ```
 
