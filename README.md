@@ -92,7 +92,7 @@ ceph -s
 ```javascript
 git clone https://github.com/ceph/ceph-csi.git
 cd ceph-csi && git checkout v3.3.1
-cd ceph-csi/deploy/cephfs/kubernetes
+cd ./deploy/cephfs/kubernetes
 
 vi csi-config-map.yaml
 ---
