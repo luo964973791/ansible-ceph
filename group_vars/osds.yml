@@ -34,7 +34,7 @@ dummy:
 # Note: This scenario uses the ceph-volume lvm batch method to provision OSDs
 
 devices:
-  - /dev/nvme0n2
+  - /dev/sdb
 #  - /dev/sdc
 #  - /dev/sdd
 #  - /dev/sde
