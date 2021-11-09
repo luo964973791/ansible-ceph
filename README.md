@@ -90,6 +90,141 @@ ceph -s
 ### k8s挂载cephFS
 
 ```javascript
+git clone https://github.com/ceph/ceph-csi.git
+cd ceph-csi && git checkout v3.3.1
+cd ceph-csi/deploy/cephfs/kubernetes
+
+vi csi-config-map.yaml
+---
+apiVersion: v1
+kind: ConfigMap
+data:
+  config.json: |-
+    [
+      {
+        "clusterID": "3887d53c-2433-46b7-b43f-7054437ac829",  #ceph -s查看clusterID
+        "monitors": [
+          "172.27.0.6:6789",
+          "172.27.0.7:6789",
+          "172.27.0.8:6789"
+        ]
+      }
+    ]
+metadata:
+  name: ceph-csi-config
+  
+  
+  
+
+csi-provisioner-rbac.yaml  csi-nodeplugin-rbac.yaml      #里面的命名空间改为ceph-csi  
+sed -i 's/namespace: default/namespace: ceph-csi/g' csi-provisioner-rbac.yaml
+sed -i 's/namespace: default/namespace: ceph-csi/g' csi-nodeplugin-rbac.yaml
+NAMESPACE=ceph-csi
+sed -r -i "s/namespace: [^ ]+/namespace: $NAMESPACE/g" ./*.yaml
+sed -r -i "N;s/(name: PROVISIONER_SECRET_NAMESPACE.*\n[[:space:]]*)value:.*/\1value: $NAMESPACE/" ./.yaml
+
+
+
+
+#创建ceph的命名空间 ceph的想东西都部署在此命名空间中
+kubectl create ns ceph-csi
+kubectl apply -f csi-config-map.yaml -n ceph-csi
+kubectl create -f csi-provisioner-rbac.yaml -n ceph-csi
+kubectl create -f csi-nodeplugin-rbac.yaml -n ceph-csi
+kubectl create -f csi-cephfsplugin-provisioner.yaml -n ceph-csi
+kubectl create -f csi-cephfsplugin.yaml -n ceph-csi
+
+#创建密钥.
+cd ceph-csi/examples/cephfs
+vim secret.yaml
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: csi-cephfs-secret
+  namespace: ceph
+stringData:
+  # 通过ceph auth get client.admin查看
+  # Required for statically provisioned volumes
+  userID: admin              
+  userKey: AQBgCIpg8OC9LRAAcl8XOfU9/71WiZNLGgnjgA==
+  
+  # Required for dynamically provisioned volumes
+  adminID: admin
+  adminKey: AQBgCIpg8OC9LRAAcl8XOfU9/71WiZNLGgnjgA==
+    
+kubectl apply -f secret.yaml
+
+vim storageclass.yaml
+
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: csi-cephfs-sc
+provisioner: cephfs.csi.ceph.com
+parameters:
+  # (required) String representing a Ceph cluster to provision storage from.
+  # Should be unique across all Ceph clusters in use for provisioning,
+  # cannot be greater than 36 bytes in length, and should remain immutable for
+  # the lifetime of the StorageClass in use.
+  # Ensure to create an entry in the configmap named ceph-csi-config, based on
+  # csi-config-map-sample.yaml, to accompany the string chosen to
+  # represent the Ceph cluster in clusterID below
+  clusterID: 71057bd8-9a18-42ea-95e0-7596901370fe  #此处就是填写上面的clusterID
+  
+  # (required) CephFS filesystem name into which the volume shall be created
+  # eg: fsName: myfs
+  fsName: cephfs
+  
+  # (optional) Ceph pool into which volume data shall be stored
+  # pool: <cephfs-data-pool>
+  
+  # (optional) Comma separated string of Ceph-fuse mount options.
+  # For eg:
+  # fuseMountOptions: debug
+  
+  # (optional) Comma separated string of Cephfs kernel mount options.
+  # Check man mount.ceph for mount options. For eg:
+  # kernelMountOptions: readdir_max_bytes=1048576,norbytes
+  
+  # The secrets have to contain user and/or Ceph admin credentials.
+  # 注意，这里的命名空间都改为ceph
+  csi.storage.k8s.io/provisioner-secret-name: csi-cephfs-secret
+  csi.storage.k8s.io/provisioner-secret-namespace: ceph-csi 
+  csi.storage.k8s.io/controller-expand-secret-name: csi-cephfs-secret
+  csi.storage.k8s.io/controller-expand-secret-namespace: ceph-csi
+  csi.storage.k8s.io/node-stage-secret-name: csi-cephfs-secret
+  csi.storage.k8s.io/node-stage-secret-namespace: ceph-csi
+  
+  # (optional) The driver can use either ceph-fuse (fuse) or
+  # ceph kernelclient (kernel).
+  # If omitted, default volume mounter will be used - this is
+  # determined by probing for ceph-fuse and mount.ceph
+  # mounter: kernel
+  
+  # (optional) Prefix to use for naming subvolumes.
+  # If omitted, defaults to "csi-vol-".
+  # volumeNamePrefix: "foo-bar-"
+  
+reclaimPolicy: Delete
+allowVolumeExpansion: true
+mountOptions:
+  - discard
+    
+kubectl apply -f storageclass.yaml
+kubectl get sc
+NAME                    PROVISIONER           RECLAIMPOLICY   VOLUMEBINDINGMODE   ALLOWVOLUMEEXPANSION   AGE
+csi-cephfs-sc           cephfs.csi.ceph.com   Delete          Immediate           true                   4s
+
+
+kubectl apply -f pvc.yaml
+kubectl get pvc
+NAME                           STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS    AGE
+csi-cephfs-pvc                 Bound    pvc-5c5fb10a-c8db-48da-b71c-b1cefc9ebb6e   1Gi        RWX            csi-cephfs-sc   18s
+
+
+
 mkdir /mnt/cephfs
 #挂载
 ceph-fuse -m 172.27.0.6:6789,172.27.0.7:6789,172.27.0.8:6789 /mnt/ceph
@@ -97,61 +232,9 @@ ceph-fuse -m 172.27.0.6:6789,172.27.0.7:6789,172.27.0.8:6789 /mnt/ceph
 #vi /etc/fstab
 none /mnt/ceph fuse.ceph ceph.id=admin,ceph.conf=/etc/ceph/ceph.conf,nonempty,_netdev,defaults 0 0
 
-
-
-# 创建命名空间
-kubectl create ns cephfs
-ceph auth get-key client.admin
-
-#拿到上面的值,创建权限.    
-kubectl create secret generic ceph-secret-admin --from-literal=key="AQDyWw9dOUm/FhAA4JCA9PXkPo6+OXpOj9N2ZQ==" -n cephfs
-
 ```
 
-### 创建provisioner
 
-```javascript
-git clone https://github.com/kubernetes-incubator/external-storage.git
-cd external-storage/ceph/cephfs/deploy
-NAMESPACE=cephfs
-sed -r -i "s/namespace: [^ ]+/namespace: $NAMESPACE/g" ./rbac/*.yaml
-sed -r -i "N;s/(name: PROVISIONER_SECRET_NAMESPACE.*\n[[:space:]]*)value:.*/\1value: $NAMESPACE/" ./rbac/deployment.yaml
-kubectl -n $NAMESPACE apply -f ./rbac
-```
-
-### 创建class
-
-```javascript
-[root@ ~]# cat cephfs-class.yaml
-kind: StorageClass
-apiVersion: storage.k8s.io/v1
-metadata:
-  name: cephfs
-provisioner: ceph.com/cephfs
-parameters:
-    monitors: 172.27.0.6:6789,172.27.0.7:6789,172.27.0.8:6789
-    adminId: admin
-    adminSecretName: ceph-secret-admin
-    adminSecretNamespace: cephfs
-    claimRoot: /volumes/kubernetes
-```
-
-### pvc
-
-```javascript
-[root@ ~]# cat cephfs-pvc.yaml
-kind: PersistentVolumeClaim
-apiVersion: v1
-metadata:
-  name: cephfs-pvc
-spec:
-  accessModes:
-    - ReadWriteMany
-  resources:
-    requests:
-      storage: 8Gi
-  storageClassName: cephfs
-```
 
 ### 创建pod.yaml
 
@@ -186,7 +269,7 @@ spec:
       volumes:
       - name: cephfs-pvc
         persistentVolumeClaim:
-          claimName: cephfs-pvc
+          claimName: csi-cephfs-sc
 ---
 apiVersion: v1
 kind: Service
