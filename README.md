@@ -121,7 +121,7 @@ sed -i 's/namespace: default/namespace: ceph-csi/g' csi-provisioner-rbac.yaml
 sed -i 's/namespace: default/namespace: ceph-csi/g' csi-nodeplugin-rbac.yaml
 NAMESPACE=ceph-csi
 sed -r -i "s/namespace: [^ ]+/namespace: $NAMESPACE/g" ./*.yaml
-sed -r -i "N;s/(name: PROVISIONER_SECRET_NAMESPACE.*\n[[:space:]]*)value:.*/\1value: $NAMESPACE/" ./.yaml
+sed -r -i "N;s/(name: PROVISIONER_SECRET_NAMESPACE.*\n[[:space:]]*)value:.*/\1value: $NAMESPACE/" ./*.yaml
 
 
 
