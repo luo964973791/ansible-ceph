@@ -90,8 +90,7 @@ ceph -s
 ### k8s挂载cephFS
 
 ```javascript
-git clone https://github.com/ceph/ceph-csi.git
-cd ceph-csi && git checkout v3.3.1
+cd ceph-ansible/ceph-csi
 cd ./deploy/cephfs/kubernetes
 
 vi csi-config-map.yaml
@@ -102,7 +101,7 @@ data:
   config.json: |-
     [
       {
-        "clusterID": "3887d53c-2433-46b7-b43f-7054437ac829",  #ceph -s查看clusterID
+        "clusterID": "3887d53c-2433-46b7-b43f-7054437ac829",
         "monitors": [
           "172.27.0.6:6789",
           "172.27.0.7:6789",
@@ -113,26 +112,16 @@ data:
 metadata:
   name: ceph-csi-config
   
-  
-  
-
-csi-provisioner-rbac.yaml  csi-nodeplugin-rbac.yaml      #里面的命名空间改为ceph-csi  
-sed -i 's/namespace: default/namespace: ceph-csi/g' csi-provisioner-rbac.yaml
-sed -i 's/namespace: default/namespace: ceph-csi/g' csi-nodeplugin-rbac.yaml
-NAMESPACE=ceph-csi
-sed -r -i "s/namespace: [^ ]+/namespace: $NAMESPACE/g" ./*.yaml
-sed -r -i "N;s/(name: PROVISIONER_SECRET_NAMESPACE.*\n[[:space:]]*)value:.*/\1value: $NAMESPACE/" ./*.yaml
-
-
-
-
-#创建ceph的命名空间 ceph的想东西都部署在此命名空间中
+#创建cephfs的命名空间 ceph的想东西都部署在此命名空间中
 kubectl create ns ceph-csi
 kubectl apply -f csi-config-map.yaml -n ceph-csi
 kubectl create -f csi-provisioner-rbac.yaml -n ceph-csi
 kubectl create -f csi-nodeplugin-rbac.yaml -n ceph-csi
 kubectl create -f csi-cephfsplugin-provisioner.yaml -n ceph-csi
 kubectl create -f csi-cephfsplugin.yaml -n ceph-csi
+
+
+
 
 #创建密钥.
 cd ceph-csi/examples/cephfs
