@@ -90,7 +90,7 @@ ceph -s
 ### k8s挂载cephFS
 
 ```javascript
-cd ceph-ansible/ceph-csi
+cd ansible-ceph/ceph-csi
 cd ./deploy/cephfs/kubernetes
 
 vi csi-config-map.yaml
@@ -119,8 +119,6 @@ kubectl create -f csi-provisioner-rbac.yaml -n ceph-csi
 kubectl create -f csi-nodeplugin-rbac.yaml -n ceph-csi
 kubectl create -f csi-cephfsplugin-provisioner.yaml -n ceph-csi
 kubectl create -f csi-cephfsplugin.yaml -n ceph-csi
-
-
 
 
 #创建密钥.
@@ -223,7 +221,183 @@ none /mnt/ceph fuse.ceph ceph.id=admin,ceph.conf=/etc/ceph/ceph.conf,nonempty,_n
 
 ```
 
+### 挂载rbd
+```javascript
+cd ansible-ceph/ceph-csi
+cd ./deploy/rbd/kubernetes
 
+vi csi-config-map.yaml
+---
+apiVersion: v1
+kind: ConfigMap
+data:
+  config.json: |-
+    [
+      {
+        "clusterID": "3887d53c-2433-46b7-b43f-7054437ac829",
+        "monitors": [
+          "172.27.0.6:6789",
+          "172.27.0.7:6789",
+          "172.27.0.8:6789"
+        ]
+      }
+    ]
+metadata:
+  name: ceph-csi-config
+  
+  
+  
+  
+kubectl apply -f csi-config-map.yaml -n ceph-csi
+kubectl create -f csi-provisioner-rbac.yaml -n ceph-csi
+kubectl create -f csi-nodeplugin-rbac.yaml -n ceph-csi
+kubectl create -f csi-rbdplugin-provisioner.yaml -n ceph-csi
+kubectl create -f csi-rbdplugin.yaml -n ceph-csi
+
+ceph osd pool create k8s 32 32
+rbd pool init k8s
+ceph auth get-or-create client.k8s mon 'profile rbd' osd 'profile rbd pool=k8s' mgr 'profile rbd pool=k8s'
+
+cd ceph-csi/examples/rbd
+vim secret.yaml
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: csi-rbd-secret
+  namespace: ceph
+stringData:
+  # Key values correspond to a user name and its key, as defined in the
+  # ceph cluster. User ID should have required access to the 'pool'
+  # specified in the storage class
+  userID: admin
+  userKey: AQBgCIpg8OC9LRAAcl8XOfU9/71WiZNLGgnjgA==
+  
+  # Encryption passphrase
+  encryptionPassphrase: test_passphrase
+kubectl apply -f secret.yaml
+
+
+vim storageclass.yaml
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+   name: csi-rbd-sc
+provisioner: rbd.csi.ceph.com
+# If topology based provisioning is desired, delayed provisioning of
+# PV is required and is enabled using the following attribute
+# For further information read TODO<doc>
+# volumeBindingMode: WaitForFirstConsumer
+parameters:
+   # (required) String representing a Ceph cluster to provision storage from.
+   # Should be unique across all Ceph clusters in use for provisioning,
+   # cannot be greater than 36 bytes in length, and should remain immutable for
+   # the lifetime of the StorageClass in use.
+   # Ensure to create an entry in the configmap named ceph-csi-config, based on
+   # csi-config-map-sample.yaml, to accompany the string chosen to
+   # represent the Ceph cluster in clusterID below
+   clusterID: 71057bd8-9a18-42ea-95e0-7596901370fe  #此处就是填写上面的clusterID
+  
+   # (optional) If you want to use erasure coded pool with RBD, you need to
+   # create two pools. one erasure coded and one replicated.
+   # You need to specify the replicated pool here in the `pool` parameter, it is
+   # used for the metadata of the images.
+   # The erasure coded pool must be set as the `dataPool` parameter below.
+   # dataPool: <ec-data-pool>
+  
+   # (required) Ceph pool into which the RBD image shall be created
+   # eg: pool: rbdpool
+   pool: k8s  #填写上面的存储池
+  
+   # Set thickProvision to true if you want RBD images to be fully allocated on
+   # creation (thin provisioning is the default).
+   thickProvision: "false"
+   # (required) RBD image features, CSI creates image with image-format 2
+   # CSI RBD currently supports `layering`, `journaling`, `exclusive-lock`
+   # features. If `journaling` is enabled, must enable `exclusive-lock` too.
+   # imageFeatures: layering,journaling,exclusive-lock
+   imageFeatures: layering
+  
+   # (optional) mapOptions is a comma-separated list of map options.
+   # For krbd options refer
+   # https://docs.ceph.com/docs/master/man/8/rbd/#kernel-rbd-krbd-options
+   # For nbd options refer
+   # https://docs.ceph.com/docs/master/man/8/rbd-nbd/#options
+   # mapOptions: lock_on_read,queue_depth=1024
+  
+   # (optional) unmapOptions is a comma-separated list of unmap options.
+   # For krbd options refer
+   # https://docs.ceph.com/docs/master/man/8/rbd/#kernel-rbd-krbd-options
+   # For nbd options refer
+   # https://docs.ceph.com/docs/master/man/8/rbd-nbd/#options
+   # unmapOptions: force
+  
+   # The secrets have to contain Ceph credentials with required access
+   # to the 'pool'.
+   csi.storage.k8s.io/provisioner-secret-name: csi-rbd-secret
+   csi.storage.k8s.io/provisioner-secret-namespace: ceph-csi
+   csi.storage.k8s.io/controller-expand-secret-name: csi-rbd-secret
+   csi.storage.k8s.io/controller-expand-secret-namespace: ceph-csi
+   csi.storage.k8s.io/node-stage-secret-name: csi-rbd-secret
+   csi.storage.k8s.io/node-stage-secret-namespace: ceph-csi
+  
+   # (optional) Specify the filesystem type of the volume. If not specified,
+   # csi-provisioner will set default as `ext4`.
+   csi.storage.k8s.io/fstype: ext4
+  
+   # (optional) uncomment the following to use rbd-nbd as mounter
+   # on supported nodes
+   # mounter: rbd-nbd
+  
+   # (optional) Prefix to use for naming RBD images.
+   # If omitted, defaults to "csi-vol-".
+   # volumeNamePrefix: "foo-bar-"
+  
+   # (optional) Instruct the plugin it has to encrypt the volume
+   # By default it is disabled. Valid values are "true" or "false".
+   # A string is expected here, i.e. "true", not true.
+   # encrypted: "true"
+  
+   # (optional) Use external key management system for encryption passphrases by
+   # specifying a unique ID matching KMS ConfigMap. The ID is only used for
+   # correlation to configmap entry.
+   # encryptionKMSID: <kms-config-id>
+  
+   # Add topology constrained pools configuration, if topology based pools
+   # are setup, and topology constrained provisioning is required.
+   # For further information read TODO<doc>
+   # topologyConstrainedPools: |
+   #   [{"poolName":"pool0",
+   #     "dataPool":"ec-pool0" # optional, erasure-coded pool for data
+   #     "domainSegments":[
+   #       {"domainLabel":"region","value":"east"},
+   #       {"domainLabel":"zone","value":"zone1"}]},
+   #    {"poolName":"pool1",
+   #     "dataPool":"ec-pool1" # optional, erasure-coded pool for data
+   #     "domainSegments":[
+   #       {"domainLabel":"region","value":"east"},
+   #       {"domainLabel":"zone","value":"zone2"}]},
+   #    {"poolName":"pool2",
+   #     "dataPool":"ec-pool2" # optional, erasure-coded pool for data
+   #     "domainSegments":[
+   #       {"domainLabel":"region","value":"west"},
+   #       {"domainLabel":"zone","value":"zone1"}]}
+   #   ]
+  
+reclaimPolicy: Delete
+allowVolumeExpansion: true
+mountOptions:
+   - discard
+
+
+
+kubectl apply -f storageclass.yaml
+kubectl apply -f pvc.yaml
+
+
+
+```
 
 ### 创建pod.yaml
 
