@@ -85,6 +85,16 @@ ceph -s
     objects: 0 objects, 0B
     usage:   2.00GiB used, 37.8GiB / 39.8GiB avail
     pgs:
+    
+    
+
+yum install ceph-fuse -y
+mkdir /mnt/ceph
+#挂载
+ceph-fuse -m 172.27.0.6:6789,172.27.0.7:6789,172.27.0.8:6789 /mnt/ceph
+    
+#vi /etc/fstab
+none /mnt/ceph fuse.ceph ceph.id=admin,ceph.conf=/etc/ceph/ceph.conf,nonempty,_netdev,defaults 0 0
 ```
 
 ### k8s挂载cephFS
@@ -209,15 +219,6 @@ kubectl apply -f pvc.yaml
 kubectl get pvc
 NAME                           STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS    AGE
 csi-cephfs-pvc                 Bound    pvc-5c5fb10a-c8db-48da-b71c-b1cefc9ebb6e   1Gi        RWX            csi-cephfs-sc   18s
-
-
-
-mkdir /mnt/cephfs
-#挂载
-ceph-fuse -m 172.27.0.6:6789,172.27.0.7:6789,172.27.0.8:6789 /mnt/ceph
-    
-#vi /etc/fstab
-none /mnt/ceph fuse.ceph ceph.id=admin,ceph.conf=/etc/ceph/ceph.conf,nonempty,_netdev,defaults 0 0
 
 ```
 
