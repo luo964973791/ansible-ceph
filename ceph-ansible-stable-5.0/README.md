@@ -15,7 +15,6 @@ yum -y install python36-PyYAML python36-six openssl openssl-devel systemd-devel 
 yum install python36 -y && pip3 install --upgrade pip && pip3 install --upgrade setuptools
 
 #安装依赖，只在部署节点上安装.
-
 pip3 install -r ceph-ansible-stable-5.0/requirements.txt
 ```
 
