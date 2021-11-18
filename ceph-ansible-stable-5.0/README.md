@@ -13,6 +13,7 @@
 yum install epel-release -y
 yum -y install python36-PyYAML python36-six openssl openssl-devel systemd-devel zlib-devel chrony jq && yum clean all && yum makecache
 yum install python36 -y && pip3 install --upgrade pip && pip3 install --upgrade setuptools
+pip install netaddr pyyaml
 
 #安装依赖，只在部署节点上安装.
 pip3 install -r ceph-ansible-stable-5.0/requirements.txt
@@ -27,8 +28,8 @@ cd ceph-ansible/group_vars/
 dummy:
 ceph_origin: repository
 ceph_repository: community
-ceph_mirror: http://mirrors.aliyun.com/ceph
-ceph_stable_key: http://mirrors.aliyun.com/ceph/keys/release.asc
+ceph_mirror: http://download.ceph.com
+ceph_stable_key: http://download.ceph.com/keys/release.asc
 ceph_stable_release: pacific
 ceph_stable_repo: "{{ ceph_mirror }}/rpm-{{ ceph_stable_release }}"
 cephx: true
