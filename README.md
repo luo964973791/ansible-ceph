@@ -139,7 +139,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: csi-cephfs-secret
-  namespace: ceph
+  namespace: ceph-csi
 stringData:
   # 通过ceph auth get client.admin查看
   # Required for statically provisioned volumes
@@ -266,7 +266,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: csi-rbd-secret
-  namespace: ceph
+  namespace: ceph-csi
 stringData:
   # Key values correspond to a user name and its key, as defined in the
   # ceph cluster. User ID should have required access to the 'pool'
