@@ -12,7 +12,7 @@
 #安装依赖,必须在三台ceph节点上都要安装
 yum install epel-release -y
 yum -y install python36-PyYAML python36-six openssl openssl-devel systemd-devel zlib-devel chrony jq && yum clean all && yum makecache
-yum install python36 -y && pip3 install --upgrade pip && pip3 install --upgrade setuptools
+yum install systemd-* python36 -y && pip3 install --upgrade pip && pip3 install --upgrade setuptools
 pip3 install {netaddr,pyyaml,werkzeug,pecan,cherrypy}
 
 
