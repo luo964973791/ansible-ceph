@@ -430,6 +430,7 @@ spec:
     spec:
       accessModes: [ "ReadWriteOnce" ]
       storageClassName: "csi-rbd-sc"
+      persistentVolumeReclaimPolicy: Recycle
       resources:
         requests:
           storage: 1Gi
