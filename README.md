@@ -393,60 +393,45 @@ mountOptions:
 
 
 kubectl apply -f storageclass.yaml
-kubectl apply -f pvc.yaml
-
-
 
 ```
 
 ### 创建pod.yaml
 
 ```javascript
-[root@ ~]# cat nginx.yaml
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
-  name: nginx
+  name: web
 spec:
   selector:
     matchLabels:
       app: nginx
-  replicas: 2
+  serviceName: "nginx"
+  replicas: 3
   template:
     metadata:
       labels:
         app: nginx
     spec:
+      terminationGracePeriodSeconds: 10
       containers:
       - name: nginx
         image: nginx:alpine
-        imagePullPolicy: IfNotPresent
         ports:
-        - name: http
-          containerPort: 80
-        - name: https
-          containerPort: 443
+        - containerPort: 80
+          name: web
         volumeMounts:
-        - name: cephfs-pvc
+        - name: www
           mountPath: /usr/share/nginx/html
-      volumes:
-      - name: cephfs-pvc
-        persistentVolumeClaim:
-          claimName: csi-rbd-sc
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: nginx
-spec:
-  type: NodePort
-  ports:
-  - name: nginx
-    port: 80
-    protocol: TCP
-    targetPort: 80
-    nodePort: 32668
-  selector:
-    app: nginx
+  volumeClaimTemplates:
+  - metadata:
+      name: www
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "csi-rbd-sc"
+      resources:
+        requests:
+          storage: 1Gi
 ```
 
