@@ -55,11 +55,11 @@ parameters:
    # The secrets have to contain Ceph credentials with required access
    # to the 'pool'.
    csi.storage.k8s.io/provisioner-secret-name: csi-rbd-secret
-   csi.storage.k8s.io/provisioner-secret-namespace: ceph-csi
+   csi.storage.k8s.io/provisioner-secret-namespace: rbd-provisioner
    csi.storage.k8s.io/controller-expand-secret-name: csi-rbd-secret
-   csi.storage.k8s.io/controller-expand-secret-namespace: ceph-csi
+   csi.storage.k8s.io/controller-expand-secret-namespace: rbd-provisioner
    csi.storage.k8s.io/node-stage-secret-name: csi-rbd-secret
-   csi.storage.k8s.io/node-stage-secret-namespace: ceph-csi
+   csi.storage.k8s.io/node-stage-secret-namespace: rbd-provisioner
 
    # (optional) Specify the filesystem type of the volume. If not specified,
    # csi-provisioner will set default as `ext4`.
