@@ -27,7 +27,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: rbd-csi-nodeplugin
-    namespace: ceph-csi
+    namespace: rbd-provisioner
 roleRef:
   kind: ClusterRole
   name: rbd-csi-nodeplugin

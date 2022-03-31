@@ -247,13 +247,12 @@ metadata:
   name: ceph-csi-config
   
   
+kubectl apply -f csi-config-map.yaml -n rbd-provisioner
+kubectl apply -f csi-provisioner-rbac.yaml -n rbd-provisioner
+kubectl apply -f csi-nodeplugin-rbac.yaml -n rbd-provisioner
+kubectl apply -f csi-rbdplugin-provisioner.yaml -n rbd-provisioner
+kubectl apply -f csi-rbdplugin.yaml -n rbd-provisioner  
   
-  
-kubectl apply -f csi-config-map.yaml -n ceph-csi
-kubectl create -f csi-provisioner-rbac.yaml -n ceph-csi
-kubectl create -f csi-nodeplugin-rbac.yaml -n ceph-csi
-kubectl create -f csi-rbdplugin-provisioner.yaml -n ceph-csi
-kubectl create -f csi-rbdplugin.yaml -n ceph-csi
 
 ceph osd pool create k8s 32 32
 rbd pool init k8s
@@ -266,7 +265,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: csi-rbd-secret
-  namespace: ceph-csi
+  namespace: rbd-provisioner
 stringData:
   # Key values correspond to a user name and its key, as defined in the
   # ceph cluster. User ID should have required access to the 'pool'
@@ -337,11 +336,11 @@ parameters:
    # The secrets have to contain Ceph credentials with required access
    # to the 'pool'.
    csi.storage.k8s.io/provisioner-secret-name: csi-rbd-secret
-   csi.storage.k8s.io/provisioner-secret-namespace: ceph-csi
+   csi.storage.k8s.io/provisioner-secret-namespace: rbd-provisioner
    csi.storage.k8s.io/controller-expand-secret-name: csi-rbd-secret
-   csi.storage.k8s.io/controller-expand-secret-namespace: ceph-csi
+   csi.storage.k8s.io/controller-expand-secret-namespace: rbd-provisioner
    csi.storage.k8s.io/node-stage-secret-name: csi-rbd-secret
-   csi.storage.k8s.io/node-stage-secret-namespace: ceph-csi
+   csi.storage.k8s.io/node-stage-secret-namespace: rbd-provisioner
   
    # (optional) Specify the filesystem type of the volume. If not specified,
    # csi-provisioner will set default as `ext4`.
