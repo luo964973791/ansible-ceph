@@ -393,7 +393,7 @@ mountOptions:
 
 
 kubectl apply -f storageclass.yaml
-
+kubectl describe sts nginx #查看挂载是否成功.
 ```
 
 ### 创建pod.yaml
