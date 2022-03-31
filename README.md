@@ -432,7 +432,7 @@ spec:
       volumes:
       - name: cephfs-pvc
         persistentVolumeClaim:
-          claimName: csi-cephfs-sc
+          claimName: csi-rbd-sc
 ---
 apiVersion: v1
 kind: Service
