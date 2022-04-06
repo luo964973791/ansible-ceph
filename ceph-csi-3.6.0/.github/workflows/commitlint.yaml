@@ -1,0 +1,19 @@
+---
+name: commitlint
+# yamllint disable-line rule:truthy
+on:
+  pull_request:
+    branches:
+      - '*'
+jobs:
+  commitlint:
+    name: commitlint
+    if: ${{ github.actor != 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: commitlint
+        # yamllint disable-line rule:line-length
+        run: make containerized-test CONTAINER_CMD=docker TARGET=commitlint GIT_SINCE="origin/${GITHUB_BASE_REF}"
