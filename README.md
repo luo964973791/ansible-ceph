@@ -123,12 +123,12 @@ metadata:
   name: ceph-csi-config
   
 #创建cephfs的命名空间 ceph的想东西都部署在此命名空间中
-kubectl create ns ceph-csi
-kubectl apply -f csi-config-map.yaml -n ceph-csi
-kubectl create -f csi-provisioner-rbac.yaml -n ceph-csi
-kubectl create -f csi-nodeplugin-rbac.yaml -n ceph-csi
-kubectl create -f csi-cephfsplugin-provisioner.yaml -n ceph-csi
-kubectl create -f csi-cephfsplugin.yaml -n ceph-csi
+kubectl create ns rbd-provisioner  
+kubectl apply -f csi-config-map.yaml -n rbd-provisioner
+kubectl apply -f csi-provisioner-rbac.yaml -n rbd-provisioner
+kubectl apply -f csi-nodeplugin-rbac.yaml -n rbd-provisioner
+kubectl apply -f csi-rbdplugin-provisioner.yaml -n rbd-provisioner
+kubectl apply -f csi-rbdplugin.yaml -n rbd-provisioner  
 
 
 #创建密钥.
@@ -188,11 +188,11 @@ parameters:
   # The secrets have to contain user and/or Ceph admin credentials.
   # 注意，这里的命名空间都改为ceph
   csi.storage.k8s.io/provisioner-secret-name: csi-cephfs-secret
-  csi.storage.k8s.io/provisioner-secret-namespace: ceph-csi 
+  csi.storage.k8s.io/provisioner-secret-namespace: rbd-provisioner
   csi.storage.k8s.io/controller-expand-secret-name: csi-cephfs-secret
-  csi.storage.k8s.io/controller-expand-secret-namespace: ceph-csi
+  csi.storage.k8s.io/controller-expand-secret-namespace: rbd-provisioner
   csi.storage.k8s.io/node-stage-secret-name: csi-cephfs-secret
-  csi.storage.k8s.io/node-stage-secret-namespace: ceph-csi
+  csi.storage.k8s.io/node-stage-secret-namespace: rbd-provisioner
   
   # (optional) The driver can use either ceph-fuse (fuse) or
   # ceph kernelclient (kernel).
@@ -246,7 +246,7 @@ data:
 metadata:
   name: ceph-csi-config
   
-  
+kubectl create ns rbd-provisioner  
 kubectl apply -f csi-config-map.yaml -n rbd-provisioner
 kubectl apply -f csi-provisioner-rbac.yaml -n rbd-provisioner
 kubectl apply -f csi-nodeplugin-rbac.yaml -n rbd-provisioner
