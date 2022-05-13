@@ -1,7 +1,7 @@
 ### 一、创建ceph pool
 
 ```javascript
-ceph osd pool create kubernetes 64 64
+ceph osd pool create kubernetes
 rbd pool init kubernetes
 ceph auth get-or-create client.kubernetes mon 'profile rbd' osd 'profile rbd pool=kubernetes' mgr 'profile rbd pool=kubernetes'
 
