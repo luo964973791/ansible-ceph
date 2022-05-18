@@ -10,7 +10,7 @@ ceph mon dump   #查看集群信息
 kubectl create ns ceph
 ```
 
-### 一、rbd块存储创建csi-config-map
+### 二、rbd块存储创建csi-config-map
 
 ```javascript
 #"clusterID":  ceph -s查看
@@ -51,7 +51,7 @@ EOF
 kubectl apply -f csi-kms-config-map.yaml
 ```
 
-### 一、rbd块存储创建ceph pool
+### 四、rbd块存储创建ceph pool
 
 ```javascript
 #fsid 使用ceph -s查看
