@@ -127,8 +127,8 @@ kubectl create ns rbd-provisioner
 kubectl apply -f csi-config-map.yaml -n rbd-provisioner
 kubectl apply -f csi-provisioner-rbac.yaml -n rbd-provisioner
 kubectl apply -f csi-nodeplugin-rbac.yaml -n rbd-provisioner
-kubectl apply -f csi-rbdplugin-provisioner.yaml -n rbd-provisioner
-kubectl apply -f csi-rbdplugin.yaml -n rbd-provisioner  
+kubectl apply -f csi-cephfsplugin-provisioner.yaml -n rbd-provisioner
+kubectl apply -f csi-cephfsplugin.yaml -n rbd-provisioner  
 
 
 #创建密钥.
