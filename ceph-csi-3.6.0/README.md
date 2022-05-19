@@ -283,10 +283,8 @@ wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/cephfs/kubern
 wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/cephfs/kubernetes/csi-cephfsplugin-provisioner.yaml
 wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/cephfs/kubernetes/csi-nodeplugin-rbac.yaml
 wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/cephfs/kubernetes/csi-provisioner-rbac.yaml
-kubectl create -f csi-cephfsplugin.yaml -n ceph
-kubectl create -f csi-cephfsplugin-provisioner.yaml -n ceph
-kubectl create -f csi-nodeplugin-rbac.yaml -n ceph
-kubectl create -f csi-provisioner-rbac.yaml -n ceph
+sed -i 's/namespace: default/namespace: ceph/g' ./*.yaml
+kubectl apply -f .
 ```
 
 ### 六、cephfs文件存储创建storageclass
