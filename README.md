@@ -419,7 +419,7 @@ metadata:
  name: web
  namespace: nginx
 spec:
- replicas: 3
+ replicas: 1
  selector:
   matchLabels:
    app: nginx
