@@ -399,39 +399,67 @@ kubectl describe sts nginx #查看挂载是否成功.
 ### 创建pod.yaml
 
 ```javascript
-apiVersion: apps/v1
-kind: StatefulSet
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
 metadata:
-  name: web
+  name: nginx-web-pvc
+  namespace: nginx
 spec:
+  accessModes:
+  - ReadWriteOne
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: csi-rbd-sc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+ name: web
+ namespace: nginx
+spec:
+ replicas: 3
+ selector:
+  matchLabels:
+   app: nginx
+ template:
+  metadata:
+   labels:
+    app: nginx
+  spec:
+   containers:
+   - name: nginx
+     image: nginx:latest
+     ports:
+     - containerPort: 80
+       name: web
+     resources:
+       requests:
+         memory: 50Mi
+         cpu: 50m
+     volumeMounts:
+     - name: www
+       mountPath: /usr/share/nginx/html
+       subPath: html
+   volumes:
+   - name: www
+     persistentVolumeClaim:
+       claimName: nginx-web-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+  namespace: nginx
+spec:
+  type: NodePort
   selector:
-    matchLabels:
-      app: nginx
-  serviceName: "nginx"
-  replicas: 3
-  template:
-    metadata:
-      labels:
-        app: nginx
-    spec:
-      terminationGracePeriodSeconds: 10
-      containers:
-      - name: nginx
-        image: nginx:alpine
-        ports:
-        - containerPort: 80
-          name: web
-        volumeMounts:
-        - name: www
-          mountPath: /usr/share/nginx/html
-  volumeClaimTemplates:
-  - metadata:
-      name: www
-    spec:
-      accessModes: [ "ReadWriteOnce" ]
-      storageClassName: "csi-rbd-sc"
-      resources:
-        requests:
-          storage: 1Gi
+    app: nginx
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP
 ```
 
