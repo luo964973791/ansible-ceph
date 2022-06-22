@@ -407,7 +407,7 @@ metadata:
   namespace: nginx
 spec:
   accessModes:
-  - ReadWriteOne
+  - ReadWriteOnce
   resources:
     requests:
       storage: 1Gi
