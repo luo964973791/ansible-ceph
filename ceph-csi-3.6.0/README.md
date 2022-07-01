@@ -111,7 +111,7 @@ wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/rbd/kubernete
 wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/rbd/kubernetes/csi-rbdplugin.yaml
 sed -i 's/namespace: default/namespace: ceph/g' ./*.yaml
 
-kubectl apply -f .
+kubectl apply -f . -n ceph
 ```
 
 ### 七、rbd块存储创建ceph pool
@@ -284,7 +284,7 @@ wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/cephfs/kubern
 wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/cephfs/kubernetes/csi-nodeplugin-rbac.yaml
 wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/cephfs/kubernetes/csi-provisioner-rbac.yaml
 sed -i 's/namespace: default/namespace: ceph/g' ./*.yaml
-kubectl apply -f .
+kubectl apply -f . -n ceph
 ```
 
 ### 六、cephfs文件存储创建storageclass
