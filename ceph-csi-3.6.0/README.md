@@ -197,7 +197,7 @@ metadata:
   namespace: ceph
 EOF
 
-kubectl apply -f csi-config-map.yaml
+kubectl -n ceph-csi apply -f csi-config-map.yaml
 ```
 
 ### 二、cephfs文件存储创建csi-kms-config-map
@@ -215,7 +215,7 @@ metadata:
   namespace: ceph
 EOF
 
-kubectl apply -f csi-kms-config-map.yaml
+kubectl -n ceph-csi apply -f csi-kms-config-map.yaml
 ```
 
 ### 三、文件存储创建ceph pool
@@ -245,7 +245,7 @@ metadata:
   namespace: ceph
 EOF
 
-kubectl apply -f ceph-config-map.yaml
+kubectl -n ceph-csi apply -f ceph-config-map.yaml
 ```
 
 ### 四、cephfs文件存储创建secret认证
@@ -269,7 +269,7 @@ stringData:
   adminKey: AQB+gX9iXsFoOxAAP/L8vUstJ6f63vlrrap7aw==
 EOF
 
-kubectl apply -f secret.yaml
+kubectl -n ceph-csi apply -f secret.yaml
 ```
 
 ### 五、cephfs文件存储部署
@@ -280,7 +280,7 @@ wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/cephfs/kubern
 wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/cephfs/kubernetes/csi-nodeplugin-rbac.yaml
 wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/cephfs/kubernetes/csi-provisioner-rbac.yaml
 sed -i 's/namespace: default/namespace: ceph/g' ./*.yaml
-kubectl apply -f . -n ceph
+kubectl -n ceph-csi apply -f . -n ceph
 ```
 
 ### 六、cephfs文件存储创建storageclass
@@ -342,7 +342,7 @@ mountOptions:
   - debug
 EOF
 
-kubectl apply -f storageclass.yaml
+kubectl -n ceph-csi apply -f storageclass.yaml
 ```
 
 ### 七、cephfs创建pvc测试.
