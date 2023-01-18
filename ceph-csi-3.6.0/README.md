@@ -4,10 +4,9 @@
 ceph osd pool create kubernetes
 rbd pool init kubernetes
 ceph auth get-or-create client.kubernetes mon 'profile rbd' osd 'profile rbd pool=kubernetes' mgr 'profile rbd pool=kubernetes'
-
-ceph auth list | grep -A 4 client.kubernetes
-ceph mon dump   #查看集群信息
-kubectl create ns ceph
+ceph auth get client.kubernetes
+ceph mon dump
+kubectl create ns ceph-csi
 ```
 
 ### 二、rbd块存储创建csi-config-map
@@ -21,16 +20,15 @@ data:
   config.json: |-
     [
       {
-        "clusterID": "88816657-ed2d-487e-9c51-1aa6e97f5aee",
+        "clusterID": "6f4dc742-c57f-400a-8470-33a616c88b56",
         "monitors": ["172.27.0.3:6789","172.27.0.4:6789","172.27.0.5:6789"]
       }
     ]
 metadata:
   name: ceph-csi-config
-  namespace: ceph
 EOF
 
-kubectl apply -f csi-config-map.yaml
+kubectl -n ceph-csi apply -f csi-config-map.yaml
 ```
 
 ### 三、rbd块存储创建csi-kms-config-map
@@ -45,10 +43,9 @@ data:
     {}
 metadata:
   name: ceph-csi-encryption-kms-config
-  namespace: ceph
 EOF
 
-kubectl apply -f csi-kms-config-map.yaml
+kubectl -n ceph-csi  apply -f csi-kms-config-map.yaml
 ```
 
 ### 四、rbd块存储创建ceph pool
@@ -75,10 +72,9 @@ data:
   keyring: |
 metadata:
   name: ceph-config
-  namespace: ceph
 EOF
 
-kubectl apply -f ceph-config-map.yaml
+kubectl  -n ceph-csi  apply -f ceph-config-map.yaml
 ```
 
 ### 五、rbd块存储创建ceph-rbd-secret.yaml
@@ -91,10 +87,10 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: csi-rbd-secret
-  namespace: ceph
+  namespace: ceph-csi
 stringData:
   userID: kubernetes
-  userKey: AQB7AH5izD6SKRAA54v0BY6HIwviMq8Gmpnz1A==
+  userKey: AQBSocdjboeeLhAABFqGOe+I2v3jgtiPwyFbMQ==
 EOF
 
 kubectl apply -f csi-rbd-secret.yaml
@@ -109,9 +105,9 @@ wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/rbd/kubernete
 wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/rbd/kubernetes/csi-nodeplugin-rbac.yaml
 wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/rbd/kubernetes/csi-rbdplugin-provisioner.yaml
 wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/rbd/kubernetes/csi-rbdplugin.yaml
-sed -i 's/namespace: default/namespace: ceph/g' ./*.yaml
+sed -i 's/namespace: default/namespace: ceph-csi/g' ./*.yaml
 
-kubectl apply -f . -n ceph
+kubectl apply -f . -n ceph-csi
 ```
 
 ### 七、rbd块存储创建ceph pool
@@ -124,21 +120,21 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
    name: csi-rbd-sc
-   namespace: ceph
+   namespace: ceph-csi
    annotations:
      storageclass.beta.kubernetes.io/is-default-class: "true"
      storageclass.kubesphere.io/supported-access-modes: '["ReadWriteOnce","ReadOnlyMany","ReadWriteMany"]'
 provisioner: rbd.csi.ceph.com
 parameters:
-   clusterID: 88816657-ed2d-487e-9c51-1aa6e97f5aee
+   clusterID: 6f4dc742-c57f-400a-8470-33a616c88b56
    pool: kubernetes
    imageFeatures: layering
    csi.storage.k8s.io/provisioner-secret-name: csi-rbd-secret
-   csi.storage.k8s.io/provisioner-secret-namespace: ceph
+   csi.storage.k8s.io/provisioner-secret-namespace: ceph-csi
    csi.storage.k8s.io/controller-expand-secret-name: csi-rbd-secret
-   csi.storage.k8s.io/controller-expand-secret-namespace: ceph
+   csi.storage.k8s.io/controller-expand-secret-namespace: ceph-csi
    csi.storage.k8s.io/node-stage-secret-name: csi-rbd-secret
-   csi.storage.k8s.io/node-stage-secret-namespace: ceph
+   csi.storage.k8s.io/node-stage-secret-namespace: ceph-csi
 reclaimPolicy: Delete
 allowVolumeExpansion: true
 mountOptions:
