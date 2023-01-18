@@ -59,7 +59,7 @@ kind: ConfigMap
 data:
   ceph.conf: |
     [global]
-    fsid = 88816657-ed2d-487e-9c51-1aa6e97f5aee
+    fsid = 6f4dc742-c57f-400a-8470-33a616c88b56
     public_network = 172.27.0.0/24
     cluster_network = 172.27.0.0/24
     mon_initial_members = node1,node2,node3
