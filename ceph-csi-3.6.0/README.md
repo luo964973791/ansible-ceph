@@ -93,7 +93,7 @@ stringData:
   userKey: AQBSocdjboeeLhAABFqGOe+I2v3jgtiPwyFbMQ==
 EOF
 
-kubectl apply -f csi-rbd-secret.yaml
+kubectl -n ceph-csi apply -f csi-rbd-secret.yaml
 ```
 
 ### 六、rbd块存储下载ceph-csi插件
