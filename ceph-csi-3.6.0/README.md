@@ -108,8 +108,9 @@ wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/rbd/kubernete
 wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/rbd/kubernetes/csi-nodeplugin-rbac.yaml
 wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/rbd/kubernetes/csi-rbdplugin-provisioner.yaml
 wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/rbd/kubernetes/csi-rbdplugin.yaml
-sed -i 's/namespace: default/namespace: ceph-csi/g' ./*.yaml
-
+sed -i "s/namespace: default/namespace: ceph-csi/g" $(grep -rl "namespace: default" ./)
+sed -i -e "/^kind: ServiceAccount/{N;N;a\  namespace: ceph-csi  # 输入到这里的时候需要按一下回车键，在下一行继续输入
+  }" $(egrep -rl "^kind: ServiceAccount" ./)
 kubectl apply -f . -n ceph-csi
 ```
 
@@ -283,7 +284,7 @@ wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/cephfs/kubern
 wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/cephfs/kubernetes/csi-cephfsplugin-provisioner.yaml
 wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/cephfs/kubernetes/csi-nodeplugin-rbac.yaml
 wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/cephfs/kubernetes/csi-provisioner-rbac.yaml
-sed -i 's/namespace: default/namespace: ceph/g' ./*.yaml
+sed -i "s/namespace: default/namespace: ceph-csi/g" $(grep -rl "namespace: default" ./)
 kubectl -n ceph-csi apply -f . -n ceph
 ```
 
