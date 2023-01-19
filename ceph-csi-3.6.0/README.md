@@ -190,10 +190,10 @@ data:
     ]
 metadata:
   name: ceph-csi-config
-  namespace: ceph
+  namespace: ceph-csi
 EOF
 
-kubectl -n ceph-csi apply -f csi-config-map.yaml
+kubectl apply -f csi-config-map.yaml
 ```
 
 ### 二、cephfs文件存储创建csi-kms-config-map
@@ -208,10 +208,10 @@ data:
     {}
 metadata:
   name: ceph-csi-encryption-kms-config
-  namespace: ceph
+  namespace: ceph-csi
 EOF
 
-kubectl -n ceph-csi apply -f csi-kms-config-map.yaml
+kubectl apply -f csi-kms-config-map.yaml
 ```
 
 ### 三、文件存储创建ceph pool
@@ -225,23 +225,17 @@ kind: ConfigMap
 data:
   ceph.conf: |
     [global]
-    fsid = 88816657-ed2d-487e-9c51-1aa6e97f5aee
-    public_network = 172.27.0.0/24
-    cluster_network = 172.27.0.0/24
-    mon_initial_members = node1,node2,node3
-    mon_host = 172.27.0.3,172.27.0.4,172.27.0.5
     auth_cluster_required = cephx
     auth_service_required = cephx
     auth_client_required = cephx
-    mon_allow_pool_delete = true
   # keyring is a required key and its value should be empty
   keyring: |
 metadata:
   name: ceph-config
-  namespace: ceph
+  namespace: ceph-csi
 EOF
 
-kubectl -n ceph-csi apply -f ceph-config-map.yaml
+kubectl apply -f ceph-config-map.yaml
 ```
 
 ### 四、cephfs文件存储创建secret认证
@@ -253,7 +247,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: csi-cephfs-secret
-  namespace: ceph
+  namespace: ceph-csi
 stringData:
   # 通过ceph auth get client.admin查看
   # Required for statically provisioned volumes
@@ -265,7 +259,7 @@ stringData:
   adminKey: AQB+gX9iXsFoOxAAP/L8vUstJ6f63vlrrap7aw==
 EOF
 
-kubectl -n ceph-csi apply -f secret.yaml
+kubectl apply -f secret.yaml
 ```
 
 ### 五、cephfs文件存储部署
@@ -276,7 +270,7 @@ wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/cephfs/kubern
 wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/cephfs/kubernetes/csi-nodeplugin-rbac.yaml
 wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/cephfs/kubernetes/csi-provisioner-rbac.yaml
 sed -i "s/namespace: default/namespace: ceph-csi/g" $(grep -rl "namespace: default" ./)
-kubectl -n ceph-csi apply -f . -n ceph
+kubectl apply -f .
 ```
 
 ### 六、cephfs文件存储创建storageclass
@@ -316,11 +310,11 @@ parameters:
 
   # The secrets have to contain user and/or Ceph admin credentials.
   csi.storage.k8s.io/provisioner-secret-name: csi-cephfs-secret
-  csi.storage.k8s.io/provisioner-secret-namespace: ceph
+  csi.storage.k8s.io/provisioner-secret-namespace: ceph-csi
   csi.storage.k8s.io/controller-expand-secret-name: csi-cephfs-secret
-  csi.storage.k8s.io/controller-expand-secret-namespace: ceph
+  csi.storage.k8s.io/controller-expand-secret-namespace: ceph-csi
   csi.storage.k8s.io/node-stage-secret-name: csi-cephfs-secret
-  csi.storage.k8s.io/node-stage-secret-namespace: ceph
+  csi.storage.k8s.io/node-stage-secret-namespace: ceph-csi
 
   # (optional) The driver can use either ceph-fuse (fuse) or
   # ceph kernelclient (kernel).
