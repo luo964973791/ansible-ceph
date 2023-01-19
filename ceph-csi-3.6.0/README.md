@@ -138,6 +138,7 @@ parameters:
    csi.storage.k8s.io/controller-expand-secret-namespace: ceph-csi
    csi.storage.k8s.io/node-stage-secret-name: csi-rbd-secret
    csi.storage.k8s.io/node-stage-secret-namespace: ceph-csi
+   csi.storage.k8s.io/fstype: ext4
 reclaimPolicy: Delete
 allowVolumeExpansion: true
 mountOptions:
