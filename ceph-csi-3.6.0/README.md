@@ -332,7 +332,7 @@ mountOptions:
   - debug
 EOF
 
-kubectl -n ceph-csi apply -f storageclass.yaml
+kubectl apply -f storageclass.yaml
 ```
 
 ### 七、cephfs创建pvc测试.
