@@ -29,7 +29,7 @@ metadata:
   namespace: ceph-csi
 EOF
 
-kubectl -n ceph-csi apply -f csi-config-map.yaml
+kubectl apply -f csi-config-map.yaml
 ```
 
 ### 三、rbd块存储创建csi-kms-config-map
@@ -47,7 +47,7 @@ metadata:
   namespace: ceph-csi
 EOF
 
-kubectl -n ceph-csi  apply -f csi-kms-config-map.yaml
+kubectl apply -f csi-kms-config-map.yaml
 ```
 
 ### 四、rbd块存储创建ceph pool
@@ -61,15 +61,9 @@ kind: ConfigMap
 data:
   ceph.conf: |
     [global]
-    fsid = 6f4dc742-c57f-400a-8470-33a616c88b56
-    public_network = 172.27.0.0/24
-    cluster_network = 172.27.0.0/24
-    mon_initial_members = node1,node2,node3
-    mon_host = 172.27.0.3,172.27.0.4,172.27.0.5
     auth_cluster_required = cephx
     auth_service_required = cephx
     auth_client_required = cephx
-    mon_allow_pool_delete = true
   # keyring is a required key and its value should be empty
   keyring: |
 metadata:
@@ -77,7 +71,7 @@ metadata:
   namespace: ceph-csi
 EOF
 
-kubectl  -n ceph-csi  apply -f ceph-config-map.yaml
+kubectl apply -f ceph-config-map.yaml
 ```
 
 ### 五、rbd块存储创建ceph-rbd-secret.yaml
@@ -96,7 +90,7 @@ stringData:
   userKey: AQBSocdjboeeLhAABFqGOe+I2v3jgtiPwyFbMQ==
 EOF
 
-kubectl -n ceph-csi apply -f csi-rbd-secret.yaml
+kubectl apply -f csi-rbd-secret.yaml
 ```
 
 ### 六、rbd块存储下载ceph-csi插件
