@@ -26,6 +26,7 @@ data:
     ]
 metadata:
   name: ceph-csi-config
+  namespace: ceph-csi
 EOF
 
 kubectl -n ceph-csi apply -f csi-config-map.yaml
@@ -43,6 +44,7 @@ data:
     {}
 metadata:
   name: ceph-csi-encryption-kms-config
+  namespace: ceph-csi
 EOF
 
 kubectl -n ceph-csi  apply -f csi-kms-config-map.yaml
@@ -72,6 +74,7 @@ data:
   keyring: |
 metadata:
   name: ceph-config
+  namespace: ceph-csi
 EOF
 
 kubectl  -n ceph-csi  apply -f ceph-config-map.yaml
