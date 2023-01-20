@@ -1,4 +1,5 @@
 ```javascript
+yum install python3-pip -y
 yum install docker-ce -y && systemctl start docker && systemctl enable docker
 curl --silent --remote-name --location https://github.com/ceph/ceph/raw/octopus/src/cephadm/cephadm  -o cephadm
 chmod +x cephadm
