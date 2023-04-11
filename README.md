@@ -411,55 +411,80 @@ spec:
   resources:
     requests:
       storage: 1Gi
-  storageClassName: csi-rbd-sc
+  storageClassName: local-path
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
- name: web
- namespace: nginx
-spec:
- replicas: 1
- selector:
-  matchLabels:
-   app: nginx
- template:
-  metadata:
-   labels:
+  name: nginx-deploy
+  namespace: nginx
+  labels:
     app: nginx
-  spec:
-   containers:
-   - name: nginx
-     image: nginx:latest
-     ports:
-     - containerPort: 80
-       name: web
-     resources:
-       requests:
-         memory: 50Mi
-         cpu: 50m
-     volumeMounts:
-     - name: www
-       mountPath: /usr/share/nginx/html
-       subPath: html
-   volumes:
-   - name: www
-     persistentVolumeClaim:
-       claimName: nginx-web-pvc
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image:  nginx:alpine
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "32Mi"
+          limits:
+            cpu: "200m"
+            memory: "64Mi"
+        volumeMounts:
+        - name: www
+          mountPath: /usr/share/nginx/html
+          subPath: html
+      volumes:
+      - name: www
+        persistentVolumeClaim:
+          claimName: nginx-web-pvc
+#反亲和.
+#      affinity:
+#        podAntiAffinity:
+#          requiredDuringSchedulingIgnoredDuringExecution:
+#          - topologyKey: kubernetes.io/hostname
+#            labelSelector:
+#              matchExpressions: 
+#              - key: kubernetes.io/os
+#                operator: In 
+#                values: 
+#                - linux
+
+#亲和.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - "node2"
+                - "node3"
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: nginx
+  name: nginx-service
   namespace: nginx
 spec:
-  type: NodePort
+  ports:
+  - port: 80
+    protocol: TCP
   selector:
     app: nginx
-  ports:
-    - name: http
-      port: 80
-      targetPort: 80
-      protocol: TCP
+  type: LoadBalancer
 ```
 
