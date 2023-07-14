@@ -107,6 +107,7 @@ osd_objectstore: bluestore
 dashboard_protocol: http
 dashboard_admin_user: admin
 grafana_admin_user: admin
+dashboard_enabled: false
 EOF
 ```
 
