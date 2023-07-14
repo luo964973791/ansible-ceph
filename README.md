@@ -1,4 +1,4 @@
-### ansible-playbook 在Centos7部署ceph5.0稳定版本.
+### ansible-playbook 在Centos8部署ceph6.0稳定版本.
 
 ```javascript
 # 在部署之前全部更改hosts.
@@ -10,35 +10,102 @@
 172.27.0.8 node3
 
 #安装依赖,必须在三台ceph节点上都要安装
-yum install epel-release -y
-yum -y install python36-PyYAML python36-six openssl openssl-devel systemd-devel zlib-devel chrony jq && yum clean all && yum makecache
-yum install systemd-* python36 -y && pip3 install --upgrade pip && pip3 install --upgrade setuptools
-pip3 install {netaddr,pyyaml,werkzeug,pecan,cherrypy}
-
-
-#安装依赖，只在部署节点上安装.
-pip3 install -r ceph-ansible-stable-5.0/requirements.txt
+cd /root
+git clone https://github.com/ceph/ceph-ansible.git
+cd /root/ceph-ansible
+git checkout stable-6.0
+yum install python39-netaddr python39-six python39-pip python39-devel -y
+pip3 install --upgrade pip && pip3 install --upgrade setuptools
+pip3 install -r ./requirements.txt
+ansible-galaxy collection install ansible.utils
 ```
 
 ### 修改复制文件
 
 ```javascript
-cd ceph-ansible/group_vars/
-# grep -Ev '^#|^$' all.yml
+cd /root/ceph-ansible
+cp site.yml.sample site.yml
+cd group_vars
+cp osds.yml.sample osds.yml
+cp all.yml.sample all.yml
+cp clients.yml.sample clients.yml
+cp mgrs.yml.sample mgrs.yml
+cp mons.yml.sample mons.yml
+cp rgws.yml.sample rgws.yml
+cp mdss.yml.sample mdss.yml
+
+
+cd /root/ceph-ansible
+cat <<EOF | sudo tee hosts
+[mons]
+172.27.0.3
+172.27.0.4
+172.27.0.5
+
+[mgrs]
+172.27.0.3
+172.27.0.4
+172.27.0.5
+
+[osds]
+172.27.0.3
+172.27.0.4
+172.27.0.5
+
+[rgws]
+172.27.0.3
+172.27.0.4
+172.27.0.5
+
+[mdss]
+172.27.0.3
+172.27.0.4
+172.27.0.5
+
+[monitoring]
+172.27.0.3
+172.27.0.4
+172.27.0.5
+
+[grafana-server]
+172.27.0.3
+172.27.0.4
+172.27.0.5
+EOF
+
+
+
+> ./group_vars/all.yml
+cat <<EOF | sudo tee ./group_vars/all.yml
 ---
 dummy:
+mon_group_name: mons
+osd_group_name: osds
+rgw_group_name: rgws
+mds_group_name: mdss
+client_group_name: clients
+mgr_group_name: mgrs
+grafana_server_group_name: grafana-server
+configure_firewall: False
 ceph_origin: repository
 ceph_repository: community
 ceph_mirror: http://download.ceph.com
 ceph_stable_key: http://download.ceph.com/keys/release.asc
 ceph_stable_release: pacific
 ceph_stable_repo: "{{ ceph_mirror }}/rpm-{{ ceph_stable_release }}"
-cephx: true
-monitor_interface: eth0          #根据自己的网卡名更改.
-public_network: 172.27.0.0/24    #注意这个地方和下面的public_network在生产环境要设置不一样,这里是测试就设置的一样.
-cluster_network: "{{ public_network }}"
-radosgw_interface: eth0          #根据自己的网卡名更改.
-dashboard_enabled: False
+public_network: "172.27.0.0/24"
+#注意生产环境不要跟public_network在同一个网段，最好双网卡，两个不同的网段.
+cluster_network: " 192.168.101.0/22 "
+monitor_interface: eth0
+osd_auto_discovery: true
+osd_objectstore: filestore
+radosgw_interface: eth1
+dashboard_admin_password: ans123456
+grafana_admin_password: admin
+pg_autoscale_mode: True
+osd_objectstore: bluestore
+dashboard_protocol: http
+EOF
 ```
 
 ### 挂载点
@@ -52,19 +119,7 @@ devices:
 ### 安装ceph
 
 ```javascript
-cd /root/ansible-ceph && pip3 install -r requirements.txt && ansible-playbook -i hosts site.yml
-#安装ceph会报错.
-vi /usr/sbin/ceph-volume-systemd
-#! /usr/bin/env python3   #第一行更改为这个，所有服务器都需要更改
-
-
-
-vi /usr/sbin/ceph-volume
-#! /usr/bin/env python3  #第一行更改为这个，所有服务器都需要更改
-
-
-
-#再进行安装.
+#安装.
 ansible-playbook -i hosts site.yml
 ceph config set mon auth_allow_insecure_global_id_reclaim false  #HEALTH_WARN解决方法.
 
