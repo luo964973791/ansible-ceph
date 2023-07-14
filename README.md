@@ -14,7 +14,7 @@ cd /root
 git clone https://github.com/ceph/ceph-ansible.git
 cd /root/ceph-ansible
 git checkout stable-6.0
-yum install python39-netaddr python39-six python39-pip python39-devel -y
+yum install python3-netaddr python3-six python3-pip python3-devel -y
 pip3 install --upgrade pip && pip3 install --upgrade setuptools
 pip3 install -r ./requirements.txt
 ansible-galaxy collection install ansible.utils
