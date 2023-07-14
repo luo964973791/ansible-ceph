@@ -107,7 +107,7 @@ osd_objectstore: bluestore
 dashboard_protocol: http
 dashboard_admin_user: admin
 grafana_admin_user: admin
-dashboard_enabled: false
+dashboard_enabled: false    #开启grafana dashboard 最低需要2核CPU,4G内存以上.
 EOF
 ```
 
