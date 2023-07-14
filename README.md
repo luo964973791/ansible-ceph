@@ -14,7 +14,7 @@ cd /root
 git clone https://github.com/ceph/ceph-ansible.git
 cd /root/ceph-ansible
 git checkout stable-6.0
-yum install python3-netaddr python3-six python3-pip python3-devel -y
+yum install python39-netaddr python39-six python39-pip python39-devel -y
 pip3 install --upgrade pip && pip3 install --upgrade setuptools
 pip3 install -r ./requirements.txt
 ansible-galaxy collection install ansible.utils
@@ -98,7 +98,7 @@ public_network: "172.27.0.0/24"
 cluster_network: " 192.168.101.0/22 "
 monitor_interface: eth0
 osd_auto_discovery: true
-osd_objectstore: filestore
+osd_objectstore: bluestore
 radosgw_interface: eth1
 dashboard_admin_password: ans123456
 grafana_admin_password: admin
