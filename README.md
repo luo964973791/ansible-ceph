@@ -105,6 +105,8 @@ grafana_admin_password: admin
 pg_autoscale_mode: True
 osd_objectstore: bluestore
 dashboard_protocol: http
+dashboard_admin_user: admin
+grafana_admin_user: admin
 EOF
 ```
 
