@@ -1,4 +1,4 @@
-### ansible-playbook 在Centos8部署ceph6.0稳定版本.
+### ansible-playbook 在Centos7部署ceph5.0稳定版本.
 
 ```javascript
 # 在部署之前全部更改hosts.
@@ -9,10 +9,15 @@
 172.27.0.7 node2
 172.27.0.8 node3
 
-#安装依赖.
-yum -y install vim-enhanced lrzsz tree bash-completion net-tools wget bzip2 lsof zip unzip gcc make gcc-c++ glibc glibc-devel pcre pcre-devel openssl openssl-devel systemd-devel zlib-devel chrony jq && yum clean all && yum makecache
-yum install python36 -y && pip3 install --upgrade pip && pip3 install --upgrade setuptools
-pip install netaddr pyyaml
+#安装依赖,必须在三台ceph节点上都要安装
+yum install epel-release -y
+yum -y install python36-PyYAML python36-six openssl openssl-devel systemd-devel zlib-devel chrony jq && yum clean all && yum makecache
+yum install systemd-* python36 -y && pip3 install --upgrade pip && pip3 install --upgrade setuptools
+pip3 install {netaddr,pyyaml,werkzeug,pecan,cherrypy}
+
+
+#安装依赖，只在部署节点上安装.
+pip3 install -r ceph-ansible-stable-5.0/requirements.txt
 ```
 
 ### 修改复制文件
@@ -24,8 +29,8 @@ cd ceph-ansible/group_vars/
 dummy:
 ceph_origin: repository
 ceph_repository: community
-ceph_mirror: http://mirrors.aliyun.com/ceph
-ceph_stable_key: http://mirrors.aliyun.com/ceph/keys/release.asc
+ceph_mirror: http://download.ceph.com
+ceph_stable_key: http://download.ceph.com/keys/release.asc
 ceph_stable_release: pacific
 ceph_stable_repo: "{{ ceph_mirror }}/rpm-{{ ceph_stable_release }}"
 cephx: true
@@ -123,12 +128,12 @@ metadata:
   name: ceph-csi-config
   
 #创建cephfs的命名空间 ceph的想东西都部署在此命名空间中
-kubectl create ns rbd-provisioner  
-kubectl apply -f csi-config-map.yaml -n rbd-provisioner
-kubectl apply -f csi-provisioner-rbac.yaml -n rbd-provisioner
-kubectl apply -f csi-nodeplugin-rbac.yaml -n rbd-provisioner
-kubectl apply -f csi-cephfsplugin-provisioner.yaml -n rbd-provisioner
-kubectl apply -f csi-cephfsplugin.yaml -n rbd-provisioner  
+kubectl create ns ceph-csi
+kubectl apply -f csi-config-map.yaml -n ceph-csi
+kubectl create -f csi-provisioner-rbac.yaml -n ceph-csi
+kubectl create -f csi-nodeplugin-rbac.yaml -n ceph-csi
+kubectl create -f csi-cephfsplugin-provisioner.yaml -n ceph-csi
+kubectl create -f csi-cephfsplugin.yaml -n ceph-csi
 
 
 #创建密钥.
@@ -139,7 +144,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: csi-cephfs-secret
-  namespace: ceph-csi
+  namespace: ceph
 stringData:
   # 通过ceph auth get client.admin查看
   # Required for statically provisioned volumes
@@ -188,11 +193,11 @@ parameters:
   # The secrets have to contain user and/or Ceph admin credentials.
   # 注意，这里的命名空间都改为ceph
   csi.storage.k8s.io/provisioner-secret-name: csi-cephfs-secret
-  csi.storage.k8s.io/provisioner-secret-namespace: rbd-provisioner
+  csi.storage.k8s.io/provisioner-secret-namespace: ceph-csi 
   csi.storage.k8s.io/controller-expand-secret-name: csi-cephfs-secret
-  csi.storage.k8s.io/controller-expand-secret-namespace: rbd-provisioner
+  csi.storage.k8s.io/controller-expand-secret-namespace: ceph-csi
   csi.storage.k8s.io/node-stage-secret-name: csi-cephfs-secret
-  csi.storage.k8s.io/node-stage-secret-namespace: rbd-provisioner
+  csi.storage.k8s.io/node-stage-secret-namespace: ceph-csi
   
   # (optional) The driver can use either ceph-fuse (fuse) or
   # ceph kernelclient (kernel).
@@ -246,13 +251,14 @@ data:
 metadata:
   name: ceph-csi-config
   
-kubectl create ns rbd-provisioner  
-kubectl apply -f csi-config-map.yaml -n rbd-provisioner
-kubectl apply -f csi-provisioner-rbac.yaml -n rbd-provisioner
-kubectl apply -f csi-nodeplugin-rbac.yaml -n rbd-provisioner
-kubectl apply -f csi-rbdplugin-provisioner.yaml -n rbd-provisioner
-kubectl apply -f csi-rbdplugin.yaml -n rbd-provisioner  
   
+  
+  
+kubectl apply -f csi-config-map.yaml -n ceph-csi
+kubectl create -f csi-provisioner-rbac.yaml -n ceph-csi
+kubectl create -f csi-nodeplugin-rbac.yaml -n ceph-csi
+kubectl create -f csi-rbdplugin-provisioner.yaml -n ceph-csi
+kubectl create -f csi-rbdplugin.yaml -n ceph-csi
 
 ceph osd pool create k8s 32 32
 rbd pool init k8s
@@ -265,7 +271,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: csi-rbd-secret
-  namespace: rbd-provisioner
+  namespace: ceph
 stringData:
   # Key values correspond to a user name and its key, as defined in the
   # ceph cluster. User ID should have required access to the 'pool'
@@ -336,11 +342,11 @@ parameters:
    # The secrets have to contain Ceph credentials with required access
    # to the 'pool'.
    csi.storage.k8s.io/provisioner-secret-name: csi-rbd-secret
-   csi.storage.k8s.io/provisioner-secret-namespace: rbd-provisioner
+   csi.storage.k8s.io/provisioner-secret-namespace: ceph-csi
    csi.storage.k8s.io/controller-expand-secret-name: csi-rbd-secret
-   csi.storage.k8s.io/controller-expand-secret-namespace: rbd-provisioner
+   csi.storage.k8s.io/controller-expand-secret-namespace: ceph-csi
    csi.storage.k8s.io/node-stage-secret-name: csi-rbd-secret
-   csi.storage.k8s.io/node-stage-secret-namespace: rbd-provisioner
+   csi.storage.k8s.io/node-stage-secret-namespace: ceph-csi
   
    # (optional) Specify the filesystem type of the volume. If not specified,
    # csi-provisioner will set default as `ext4`.
@@ -393,38 +399,25 @@ mountOptions:
 
 
 kubectl apply -f storageclass.yaml
-kubectl describe sts nginx #查看挂载是否成功.
+kubectl apply -f pvc.yaml
+
+
+
 ```
 
 ### 创建pod.yaml
 
 ```javascript
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: nginx-web-pvc
-  namespace: nginx
-spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
-  storageClassName: local-path
----
+[root@ ~]# cat nginx.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nginx-deploy
-  namespace: nginx
-  labels:
-    app: nginx
+  name: nginx
 spec:
-  replicas: 3
   selector:
     matchLabels:
       app: nginx
+  replicas: 2
   template:
     metadata:
       labels:
@@ -432,59 +425,34 @@ spec:
     spec:
       containers:
       - name: nginx
-        image:  nginx:alpine
+        image: nginx:alpine
+        imagePullPolicy: IfNotPresent
         ports:
-        - containerPort: 80
-        resources:
-          requests:
-            cpu: "100m"
-            memory: "32Mi"
-          limits:
-            cpu: "200m"
-            memory: "64Mi"
+        - name: http
+          containerPort: 80
+        - name: https
+          containerPort: 443
         volumeMounts:
-        - name: www
+        - name: cephfs-pvc
           mountPath: /usr/share/nginx/html
-          subPath: html
       volumes:
-      - name: www
+      - name: cephfs-pvc
         persistentVolumeClaim:
-          claimName: nginx-web-pvc
-#反亲和.
-#      affinity:
-#        podAntiAffinity:
-#          requiredDuringSchedulingIgnoredDuringExecution:
-#          - topologyKey: kubernetes.io/hostname
-#            labelSelector:
-#              matchExpressions: 
-#              - key: kubernetes.io/os
-#                operator: In 
-#                values: 
-#                - linux
-
-#亲和.
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: kubernetes.io/hostname
-                operator: In
-                values:
-                - "node2"
-                - "node3"
+          claimName: csi-cephfs-sc
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: nginx-service
-  namespace: nginx
+  name: nginx
 spec:
+  type: NodePort
   ports:
-  - port: 80
+  - name: nginx
+    port: 80
     protocol: TCP
+    targetPort: 80
+    nodePort: 32668
   selector:
     app: nginx
-  type: LoadBalancer
 ```
 
