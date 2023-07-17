@@ -14,6 +14,7 @@ cd /root
 git clone https://github.com/ceph/ceph-ansible.git
 cd /root/ceph-ansible
 git checkout stable-6.0
+grep "This version is supported on RHEL"  ./group_vars/all.yml.sample  #查看适合安装的操作系统，stable-6.0不支持centos7
 yum install python39-netaddr python39-six python39-pip python39-devel -y
 pip3 install --upgrade pip && pip3 install --upgrade setuptools
 pip3 install -r ./requirements.txt
