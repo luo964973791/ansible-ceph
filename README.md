@@ -151,12 +151,12 @@ ceph -s
     
 
 yum install ceph-fuse -y
-mkdir /mnt/ceph
+mkdir /data/ceph
 #挂载
-ceph-fuse -m 172.27.0.6:6789,172.27.0.7:6789,172.27.0.8:6789 /mnt/ceph
+ceph-fuse -m 172.27.0.6:6789,172.27.0.7:6789,172.27.0.8:6789 /data/ceph
     
 #vi /etc/fstab
-none /mnt/ceph fuse.ceph ceph.id=admin,ceph.conf=/etc/ceph/ceph.conf,nonempty,_netdev,defaults 0 0
+none /data/ceph fuse.ceph ceph.id=admin,ceph.conf=/etc/ceph/ceph.conf,nonempty,_netdev,defaults 0 0
 ```
 
 ### k8s挂载cephFS
