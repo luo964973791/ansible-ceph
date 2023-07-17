@@ -69,8 +69,6 @@ cat <<EOF | sudo tee hosts
 
 [grafana-server]
 172.27.0.3
-172.27.0.4
-172.27.0.5
 EOF
 
 
