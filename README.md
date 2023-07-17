@@ -102,7 +102,7 @@ dashboard_admin_password: ans123456
 grafana_admin_password: admin
 pg_autoscale_mode: True
 osd_objectstore: bluestore
-dashboard_protocol: https
+dashboard_protocol: http
 dashboard_admin_user: admin
 grafana_admin_user: admin
 #开启grafana dashboard 最低需要2核CPU,4G内存以上.
