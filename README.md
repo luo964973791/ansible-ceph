@@ -130,6 +130,7 @@ devices:
 ```javascript
 #安装.
 ansible-playbook -i hosts site.yml
+ceph crash archive-all
 ceph config set mon auth_allow_insecure_global_id_reclaim false  #HEALTH_WARN解决方法.
 
 ```
