@@ -92,9 +92,9 @@ ceph_mirror: http://download.ceph.com
 ceph_stable_key: http://download.ceph.com/keys/release.asc
 ceph_stable_release: pacific
 ceph_stable_repo: "{{ ceph_mirror }}/rpm-{{ ceph_stable_release }}"
-public_network: "172.27.0.0/24"
+public_network: "172.27.0.0/24"                        #eth0网段.
 #注意生产环境不要跟public_network在同一个网段，最好双网卡，两个不同的网段.
-cluster_network: " 192.168.101.0/22 "
+cluster_network: " 192.168.101.0/22 "                  #eth1网段.
 monitor_interface: eth0
 osd_auto_discovery: true
 osd_objectstore: bluestore
@@ -106,8 +106,14 @@ osd_objectstore: bluestore
 dashboard_protocol: http
 dashboard_admin_user: admin
 grafana_admin_user: admin
-#开启grafana dashboard 最低需要4核CPU,8G内存以上,部署之前需要确认资源，否则grafana部署不成功.
-dashboard_enabled: false
+#开启grafana dashboard 最低需要4核CPU,8G内存以上,部署之前需要确认资源，否则grafana部署不成功,这里手动设置小点cpu、mem.
+dashboard_enabled: true
+grafana_container_cpu_cores: 1
+grafana_container_memory: 1
+prometheus_container_cpu_cores: 1
+prometheus_container_memory: 1
+alertmanager_container_cpu_cores: 1
+alertmanager_container_memory: 1
 EOF
 ```
 
