@@ -15,10 +15,16 @@ git clone https://github.com/ceph/ceph-ansible.git
 cd /root/ceph-ansible
 git checkout stable-6.0
 grep "This version is supported on RHEL"  ./group_vars/all.yml.sample  #查看适合安装的操作系统，stable-6.0不支持centos7
-yum install python39-netaddr python39-six python39-pip python39-devel -y
+yum install python39-netaddr python3-six python3-pip python3-devel -y
 pip3 install --upgrade pip && pip3 install --upgrade setuptools
 pip3 install -r ./requirements.txt
 ansible-galaxy collection install ansible.utils
+
+#如果是stable-8.0版本执行下面的语句.
+yum install -y git python3-netaddr python3-six python3-pip python3-devel
+pip3 install "ansible-core==2.15.3"
+ansible-galaxy collection install ansible.utils
+ansible-galaxy install -r requirements.yml
 ```
 
 ### 修改复制文件
