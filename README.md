@@ -10,6 +10,20 @@
 172.27.0.8 node3
 
 #安装依赖,必须在三台ceph节点上都要安装
+sed -i "/vm.max_map_count/d" /etc/sysctl.conf
+echo "vm.max_map_count = 655360" >>/etc/sysctl.conf
+sed -i "/net.ipv4.tcp_abort_on_overflow/d" /etc/sysctl.conf
+echo "net.ipv4.tcp_abort_on_overflow = 1" >>/etc/sysctl.conf
+sed -i "/net.core.somaxconn/d" /etc/sysctl.conf
+echo "net.core.somaxconn = 2048" >>/etc/sysctl.conf
+echo "*       soft    nofile  655360" >>/etc/security/limits.conf
+echo "*       hard    nofile  655360" >>/etc/security/limits.conf
+sed -i 's/#DefaultLimitNPROC=/DefaultLimitNPROC=655360/' /etc/systemd/system.conf
+sed -i 's/#DefaultLimitNPROC=/DefaultLimitNPROC=655360/' /etc/systemd/user.conf
+systemctl disable firewalld
+systemctl stop firewalld
+sed -i 's/SELINUX=enforcing/SELINUX=disabled/' /etc/selinux/config
+timedatectl set-timezone Asia/Shanghai
 cd /root
 git clone https://github.com/ceph/ceph-ansible.git
 cd /root/ceph-ansible
