@@ -1,4 +1,4 @@
-### ansible-playbook 在Centos8部署ceph6.0稳定版本.
+### ansible-playbook 在Rocky Linux release 9.5、Python 3.9.21部署ceph8.0稳定版本,其它系统版本没有测试.
 
 ```javascript
 # 在部署之前全部更改hosts.
@@ -24,27 +24,27 @@ systemctl disable firewalld
 systemctl stop firewalld
 sed -i 's/SELINUX=enforcing/SELINUX=disabled/' /etc/selinux/config
 timedatectl set-timezone Asia/Shanghai
-cd /root
-git clone https://github.com/ceph/ceph-ansible.git
-cd /root/ceph-ansible
-git checkout stable-6.0
-grep "This version is supported on RHEL"  ./group_vars/all.yml.sample  #查看适合安装的操作系统，stable-6.0不支持centos7
-yum install python3-netaddr python3-six python3-pip python3-devel -y
-pip3 install --upgrade pip && pip3 install --upgrade setuptools
-pip3 install -r ./requirements.txt
-ansible-galaxy collection install ansible.utils
 
-#如果是stable-8.0版本执行下面的语句.
-yum install -y git python3-netaddr python3-six python3-pip python3-devel
-pip3 install "ansible-core==2.15.3"
+
+
+git clone https://github.com/ceph/ceph-ansible.git
+cd ceph-ansible
+git checkout stable-8.0
+yum install -y git wget lrzsz tar  python3-pip python3-devel python3-setuptools
+pip3 install -r ./requirements.txt 
 ansible-galaxy collection install ansible.utils
 ansible-galaxy install -r requirements.yml
+pip3 install "cherrypy<9.0"
+#测试是否正常,stable-8.0就这个cherrypy有坑
+python -c "import cherrypy; from cherrypy.wsgiserver import CherryPyWSGIServer; print('CherryPy and WSGI server loaded')"
 ```
 
 ### 修改复制文件
 
 ```javascript
 cd /root/ceph-ansible
+sed -i 's#podman#docker#g' ./roles/ceph-container-engine/vars/CentOS-9.yml
+sed -i 's#podman#docker#g' ./roles/ceph-container-engine/vars/RedHat-8.yml
 cp site.yml.sample site.yml
 cd group_vars
 cp osds.yml.sample osds.yml
