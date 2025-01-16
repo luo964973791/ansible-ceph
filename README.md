@@ -43,9 +43,8 @@ python -c "import cherrypy; from cherrypy.wsgiserver import CherryPyWSGIServer; 
 
 ```javascript
 cd /root/ceph-ansible
-sed -i 's#podman#docker#g' ./roles/ceph-container-engine/vars/CentOS-9.yml
-sed -i 's#podman#docker#g' ./roles/ceph-container-engine/vars/RedHat-8.yml
 cp site.yml.sample site.yml
+sed -i 's/when: not yes_i_know | default(false) | bool/when: not yes_i_know | default(true) | bool/' site.yml
 cd group_vars
 cp osds.yml.sample osds.yml
 cp all.yml.sample all.yml
