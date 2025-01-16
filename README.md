@@ -30,7 +30,8 @@ timedatectl set-timezone Asia/Shanghai
 git clone https://github.com/ceph/ceph-ansible.git
 cd ceph-ansible
 git checkout stable-8.0
-yum install -y git wget lrzsz tar  python3-pip python3-devel python3-setuptools
+yum install -y git wget lrzsz tar yum-utils python3-pip python3-devel python3-setuptools
+yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 pip3 install -r ./requirements.txt 
 ansible-galaxy collection install ansible.utils
 ansible-galaxy install -r requirements.yml
