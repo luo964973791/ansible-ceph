@@ -96,51 +96,49 @@ EOF
 
 > ./group_vars/all.yml
 cat <<EOF | sudo tee ./group_vars/all.yml
----
-dummy:
+cluster: ceph
 mon_group_name: mons
 osd_group_name: osds
 rgw_group_name: rgws
 mds_group_name: mdss
+nfs_group_name: nfss
+rbdmirror_group_name: rbdmirrors
 client_group_name: clients
 mgr_group_name: mgrs
-grafana_server_group_name: grafana-server
+rgwloadbalancer_group_name: rgwloadbalancers
+monitoring_group_name: monitoring
+cephx: true
 configure_firewall: False
+ntp_service_enabled: true
+ntp_daemon_type: chronyd
+public_network: "172.27.0.0/24" 
+cluster_network: "192.168.197.0/22"
 ceph_origin: repository
 ceph_repository: community
-ceph_mirror: http://download.ceph.com
-ceph_stable_key: http://download.ceph.com/keys/release.asc
-ceph_stable_release: pacific
-ceph_stable_repo: "{{ ceph_mirror }}/rpm-{{ ceph_stable_release }}"
-public_network: "172.27.0.0/24"                        #eth0网段.
-#注意生产环境不要跟public_network在同一个网段，最好双网卡，两个不同的网段.
-cluster_network: " 192.168.101.0/22 "                  #eth1网段.
-monitor_interface: eth0
-osd_auto_discovery: true
-osd_objectstore: bluestore
-radosgw_interface: eth1
-dashboard_admin_password: ans123456
-grafana_admin_password: admin
-pg_autoscale_mode: True
-osd_objectstore: bluestore
+ceph_stable_release: reef
+radosgw_interface: eth0
+dashboard_enabled: True
 dashboard_protocol: http
 dashboard_admin_user: admin
+dashboard_admin_password: Str0ngAdminPassw0d
 grafana_admin_user: admin
-#开启grafana dashboard 最低需要4核CPU,8G内存以上,部署之前需要确认资源，否则grafana部署不成功,这里手动设置小点cpu、mem.
-dashboard_enabled: true
+grafana_admin_password: Str0ngAdminPassw0d
 grafana_container_cpu_cores: 1
 grafana_container_memory: 1
 prometheus_container_cpu_cores: 1
 prometheus_container_memory: 1
 alertmanager_container_cpu_cores: 1
 alertmanager_container_memory: 1
+ceph_docker_http_proxy: http://172.27.0.6:22
+ceph_docker_https_proxy: http://172.27.0.6:22
 EOF
 ```
 
 ### 挂载点
 
 ```javascript
-vi /root/ansible-ceph/group_vars/osds.yml
+vi /root/ceph-ansible/group_vars/osds.yml
+copy_admin_key: true
 devices:
   - '/dev/vdb'            #根据自己的网ceph数据磁盘进行更改.
 ```
