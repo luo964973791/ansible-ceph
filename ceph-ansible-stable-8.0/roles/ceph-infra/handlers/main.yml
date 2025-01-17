@@ -1,0 +1,21 @@
+---
+- name: Disable ntpd
+  failed_when: false
+  ansible.builtin.service:
+    name: '{{ ntp_service_name }}'
+    state: stopped
+    enabled: false
+
+- name: Disable chronyd
+  failed_when: false
+  ansible.builtin.service:
+    name: '{{ chrony_daemon_name }}'
+    enabled: false
+    state: stopped
+
+- name: Disable timesyncd
+  failed_when: false
+  ansible.builtin.service:
+    name: timesyncd
+    enabled: false
+    state: stopped

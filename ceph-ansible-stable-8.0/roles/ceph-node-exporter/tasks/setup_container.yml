@@ -1,0 +1,11 @@
+---
+- name: Include_tasks systemd.yml
+  ansible.builtin.include_tasks: systemd.yml
+
+- name: Start the node_exporter service
+  ansible.builtin.systemd:
+    name: node_exporter
+    state: started
+    enabled: true
+    daemon_reload: true
+  failed_when: false

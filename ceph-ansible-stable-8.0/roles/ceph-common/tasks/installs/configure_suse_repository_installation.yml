@@ -1,0 +1,4 @@
+---
+- name: Include suse_obs_repository.yml
+  ansible.builtin.include_tasks: suse_obs_repository.yml
+  when: ceph_repository == 'obs'

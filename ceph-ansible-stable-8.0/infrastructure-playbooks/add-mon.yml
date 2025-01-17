@@ -1,0 +1,128 @@
+---
+# This playbook is used to add a new MON to
+# an existing cluster. It can run from any machine. Even if the fetch
+# directory is not present it will be created.
+#
+# Ensure that all monitors are present in the mons
+# group in your inventory so that the ceph configuration file
+# is created correctly for the new OSD(s).
+- name: Pre-requisites operations for adding new monitor(s)
+  hosts: mons
+  gather_facts: false
+  vars:
+    delegate_facts_host: true
+  become: true
+  pre_tasks:
+    - name: Import raw_install_python tasks
+      ansible.builtin.import_tasks: "{{ playbook_dir }}/../raw_install_python.yml"
+
+    - name: Gather facts
+      ansible.builtin.setup:
+        gather_subset:
+          - 'all'
+          - '!facter'
+          - '!ohai'
+      when: not delegate_facts_host | bool or inventory_hostname in groups.get(client_group_name, [])
+
+    - name: Import ceph-defaults role
+      ansible.builtin.import_role:
+        name: ceph-defaults
+
+    - name: Gather and delegate facts
+      ansible.builtin.setup:
+        gather_subset:
+          - 'all'
+          - '!facter'
+          - '!ohai'
+      delegate_to: "{{ item }}"
+      delegate_facts: true
+      with_items: "{{ groups[mon_group_name] }}"
+      run_once: true
+      when: delegate_facts_host | bool
+  tasks:
+    - name: Import ceph-facts role
+      ansible.builtin.import_role:
+        name: ceph-facts
+
+    - name: Import ceph-validate role
+      ansible.builtin.import_role:
+        name: ceph-validate
+
+    - name: Import ceph-infra role
+      ansible.builtin.import_role:
+        name: ceph-infra
+
+    - name: Import ceph-handler role
+      ansible.builtin.import_role:
+        name: ceph-handler
+
+    - name: Import ceph-common role
+      ansible.builtin.import_role:
+        name: ceph-common
+      when: not containerized_deployment | bool
+
+    - name: Import ceph-container-engine role
+      ansible.builtin.import_role:
+        name: ceph-container-engine
+      when: containerized_deployment | bool
+
+    - name: Import ceph-container-common role
+      ansible.builtin.import_role:
+        name: ceph-container-common
+      when: containerized_deployment | bool
+
+- name: Deploy Ceph monitors
+  hosts: mons
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Import ceph-defaults role
+      ansible.builtin.import_role:
+        name: ceph-defaults
+
+    - name: Import ceph-facts role
+      ansible.builtin.import_role:
+        name: ceph-facts
+
+    - name: Import ceph-handler role
+      ansible.builtin.import_role:
+        name: ceph-handler
+
+    - name: Import ceph-config role
+      ansible.builtin.import_role:
+        name: ceph-config
+
+    - name: Import ceph-mon role
+      ansible.builtin.import_role:
+        name: ceph-mon
+
+    - name: Import ceph-crash role
+      ansible.builtin.import_role:
+        name: ceph-crash
+      when: containerized_deployment | bool
+
+    - name: Import ceph-exporter role
+      ansible.builtin.import_role:
+        name: ceph-exporter
+      when: containerized_deployment | bool
+
+- name: Update config file on OSD nodes
+  hosts: osds
+  gather_facts: true
+  become: true
+  tasks:
+    - name: Import ceph-defaults role
+      ansible.builtin.import_role:
+        name: ceph-defaults
+
+    - name: Import ceph-facts role
+      ansible.builtin.import_role:
+        name: ceph-facts
+
+    - name: Import ceph-handler role
+      ansible.builtin.import_role:
+        name: ceph-handler
+
+    - name: Import ceph-config role
+      ansible.builtin.import_role:
+        name: ceph-config

@@ -1,0 +1,31 @@
+#jinja2: trim_blocks: "true", lstrip_blocks: "true"
+# {{ ansible_managed }}
+
+[global]
+{% if not cephx | bool %}
+auth cluster required = none
+auth service required = none
+auth client required = none
+{% endif %}
+{# NOTE (leseb): the blank lines in-between are needed otherwise we won't get any line break #}
+
+{% set nb_mon = groups.get(mon_group_name, []) | length | int %}
+
+fsid = {{ fsid }}
+mon host = {% if nb_mon > 0 %}
+{% for name, addr in _monitor_addresses.items() -%}
+{% if mon_host_v1.enabled | bool %}
+{% set _v1 = ',v1:' + addr + mon_host_v1.suffix %}
+{% endif %}
+[{{ "v2:" + addr + mon_host_v2.suffix }}{{ _v1 | default('') }}]
+{%- if not loop.last -%},{%- endif %}
+{%- endfor %}
+{% elif nb_mon == 0 %}
+{{ external_cluster_mon_ips }}
+{% endif %}
+
+{% if inventory_hostname in groups.get(client_group_name, []) %}
+[client.libvirt]
+admin socket = {{ rbd_client_admin_socket_path }}/$cluster-$type.$id.$pid.$cctid.asok # must be writable by QEMU and allowed by SELinux or AppArmor
+log file = {{ rbd_client_log_file }} # must be writable by QEMU and allowed by SELinux or AppArmor
+{% endif %}

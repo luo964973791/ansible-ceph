@@ -1,0 +1,12 @@
+---
+- name: Include_task systemd.yml
+  ansible.builtin.include_tasks: systemd.yml
+
+- name: Systemd start rgw container
+  ansible.builtin.systemd:
+    name: ceph-radosgw@rgw.{{ rgw_zone }}.{{ ansible_facts['hostname'] }}.{{ item.instance_name }}
+    state: started
+    enabled: true
+    masked: false
+    daemon_reload: true
+  with_items: "{{ rgw_instances }}"

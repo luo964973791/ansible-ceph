@@ -1,0 +1,39 @@
+---
+- name: Generate systemd ceph target file
+  ansible.builtin.copy:
+    src: ceph.target
+    dest: /etc/systemd/system/ceph.target
+    mode: "0644"
+
+- name: Enable ceph.target
+  ansible.builtin.service:
+    name: ceph.target
+    enabled: true
+    daemon_reload: true
+
+- name: Include prerequisites.yml
+  ansible.builtin.include_tasks: prerequisites.yml
+
+- name: Include registry.yml
+  ansible.builtin.include_tasks: registry.yml
+  when: ceph_docker_registry_auth | bool
+
+- name: Include fetch_image.yml
+  ansible.builtin.include_tasks: fetch_image.yml
+  tags: fetch_container_image
+
+- name: Get ceph version
+  ansible.builtin.command: >
+    {{ container_binary }} run --rm --net=host --entrypoint /usr/bin/ceph
+    {{ ceph_client_docker_registry }}/{{ ceph_client_docker_image }}:{{ ceph_client_docker_image_tag }}
+    --version
+  changed_when: false
+  check_mode: false
+  register: ceph_version
+
+- name: Set_fact ceph_version ceph_version.stdout.split
+  ansible.builtin.set_fact:
+    ceph_version: "{{ ceph_version.stdout.split(' ')[2] }}"
+
+- name: Include release.yml
+  ansible.builtin.include_tasks: release.yml

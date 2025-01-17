@@ -1,0 +1,6 @@
+---
+- name: Include setup_container.yml
+  ansible.builtin.include_tasks: setup_container.yml
+
+- name: Include configure_grafana.yml
+  ansible.builtin.include_tasks: configure_grafana.yml

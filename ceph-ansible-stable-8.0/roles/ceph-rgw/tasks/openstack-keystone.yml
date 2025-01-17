@@ -1,0 +1,32 @@
+---
+- name: Install nss-tools on redhat
+  ansible.builtin.package:
+    name: nss-tools
+    state: present
+  register: result
+  until: result is succeeded
+  when: ansible_facts['pkg_mgr'] == 'yum' or ansible_facts['pkg_mgr'] == 'dnf'
+
+- name: Install libnss3-tools on debian
+  ansible.builtin.package:
+    name: libnss3-tools
+    state: present
+  register: result
+  until: result is succeeded
+  when: ansible_facts['pkg_mgr'] == 'apt'
+
+- name: Create nss directory for keystone certificates
+  ansible.builtin.file:
+    path: "{{ radosgw_nss_db_path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Create nss entries for keystone certificates
+  ansible.builtin.shell: "{{ item }}"
+  changed_when: false
+  with_items:
+    - "openssl x509 -in /etc/keystone/ssl/certs/ca.pem -pubkey | certutil -d {{ radosgw_nss_db_path }} -A -n ca -t 'TCu,Cu,Tuw'"
+    - "openssl x509 -in /etc/keystone/ssl/certs/signing_cert.pem -pubkey | certutil -A -d {{ radosgw_nss_db_path }} -n signing_cert -t 'P,P,P'"
+  tags: skip_ansible_lint
