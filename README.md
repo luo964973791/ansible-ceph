@@ -133,6 +133,9 @@ grafana_admin_user: admin
 grafana_admin_password: Str0ngAdminPassw0d
 grafana_container_cpu_cores: 1
 grafana_container_memory: 1
+grafana_plugins:
+  - vonage-status-panel
+  - grafana-piechart-panel
 prometheus_container_cpu_cores: 1
 prometheus_container_memory: 1
 alertmanager_container_cpu_cores: 1
