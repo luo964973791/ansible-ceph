@@ -37,6 +37,13 @@ ansible-galaxy collection install ansible.utils
 ansible-galaxy install -r requirements.yml
 pip3 install "cherrypy<9.0"
 pip3 install cryptography==3.3.2 pyOpenSSL==20.0.1
+#检查版本是否跟系统openssl兼容,需要注意有坑
+#！/usr/bin/env python3
+#!encoding: utf-8
+from OpenSSL import crypto
+cert = crypto.X509()
+print("X509 certificate created successfully.")
+
 #测试是否正常,stable-8.0就这个cherrypy有坑
 python -c "import cherrypy; from cherrypy.wsgiserver import CherryPyWSGIServer; print('CherryPy and WSGI server loaded')"
 ```
