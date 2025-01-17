@@ -134,6 +134,9 @@ container_package_name: docker-ce
 container_service_name: docker
 ceph_docker_http_proxy: http://172.27.0.6:22
 ceph_docker_https_proxy: http://172.27.0.6:22
+ceph_conf_overrides:
+  mon:
+    auth_allow_insecure_global_id_reclaim: false
 EOF
 ```
 
