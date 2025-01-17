@@ -5,9 +5,9 @@
 [root@node1 ~]# cat /etc/hosts
 127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
 ::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
-172.27.0.6 node1
-172.27.0.7 node2
-172.27.0.8 node3
+172.27.0.3 node1
+172.27.0.4 node2
+172.27.0.5 node3
 
 #安装依赖,必须在三台ceph节点上都要安装
 sed -i "/vm.max_map_count/d" /etc/sysctl.conf
