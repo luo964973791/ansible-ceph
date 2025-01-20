@@ -117,6 +117,7 @@ mgr_group_name: mgrs
 rgwloadbalancer_group_name: rgwloadbalancers
 monitoring_group_name: monitoring
 cephx: true
+radosgw_frontend_port: 38080
 configure_firewall: False
 ntp_service_enabled: true
 ntp_daemon_type: chronyd
