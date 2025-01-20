@@ -1,4 +1,0 @@
----
-- name: Include pre_requisites/prerequisites.yml
-  ansible.builtin.include_tasks: pre_requisites/prerequisites.yml
-  when: not is_atomic | bool

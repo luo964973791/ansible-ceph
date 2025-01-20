@@ -1,3 +1,0 @@
----
-- name: Include setup_container.yml
-  ansible.builtin.include_tasks: setup_container.yml

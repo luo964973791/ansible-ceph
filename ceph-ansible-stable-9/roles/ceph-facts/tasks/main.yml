@@ -1,3 +1,0 @@
----
-- name: Include facts.yml
-  ansible.builtin.include_tasks: facts.yml
