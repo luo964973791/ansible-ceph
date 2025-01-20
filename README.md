@@ -1,4 +1,4 @@
-### ansible-playbook 在Rocky Linux release 9.5、Python 3.9.21部署ceph8.0稳定版本,其它系统版本没有测试.
+### ansible-playbook 在Rocky Linux release 9.5、Python 3.9.21部署ceph9.0稳定版本,其它系统版本没有测试.
 
 ```javascript
 # 在部署之前全部更改hosts.
