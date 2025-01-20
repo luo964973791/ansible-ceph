@@ -29,7 +29,7 @@ timedatectl set-timezone Asia/Shanghai
 
 git clone https://github.com/ceph/ceph-ansible.git
 cd ceph-ansible
-git checkout stable-8.0
+git checkout stable-9.0
 yum install epel-release -y
 yum install -y git wget lrzsz tar yum-utils python3-pip python3-devel python3-setuptools
 yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
