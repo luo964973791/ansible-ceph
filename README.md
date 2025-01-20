@@ -33,13 +33,13 @@ git checkout stable-8.0
 yum install epel-release -y
 yum install -y git wget lrzsz tar yum-utils python3-pip python3-devel python3-setuptools
 pip3 install --upgrade pip && pip3 install --upgrade setuptools && yum reinstall python3-setuptools -y
-python3 -m pip install --no-cache-dir --upgrade jaraco.functools
 yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 pip3 install -r ./requirements.txt 
 ansible-galaxy collection install ansible.utils
 ansible-galaxy install -r requirements.yml
 pip3 install "cherrypy<9.0"
 pip3 install cryptography==3.3.2 pyOpenSSL==20.0.1
+pip3 install jaraco.functools==4.1.0
 #检查版本是否跟系统openssl兼容,需要注意有坑
 #！/usr/bin/env python3
 #!encoding: utf-8
