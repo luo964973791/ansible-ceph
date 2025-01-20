@@ -166,6 +166,7 @@ devices:
 ```javascript
 #安装.
 ansible-playbook -i hosts site.yml -e container_package_name=docker-ce -e container_binary=docker
+
 #报错一以及解决办法: AttributeError: module 'pkg_resources' has no attribute 'iter_entry_points'
 pip3 install --upgrade pip && pip3 install --upgrade setuptools && yum reinstall python3-setuptools -y
 
