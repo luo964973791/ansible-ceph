@@ -124,7 +124,7 @@ public_network: "172.27.0.0/24"
 cluster_network: "192.168.197.0/22"
 ceph_origin: repository
 ceph_repository: community
-ceph_stable_release: reef
+ceph_stable_release: squid
 radosgw_interface: eth0
 dashboard_enabled: True
 dashboard_protocol: http
