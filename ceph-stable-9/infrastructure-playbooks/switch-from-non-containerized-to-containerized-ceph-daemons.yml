@@ -1,0 +1,808 @@
+---
+# This playbook switches from non-containerized to containerized Ceph daemons
+
+- name: Confirm whether user really meant to switch from non-containerized to containerized ceph daemons
+
+  hosts: localhost
+
+  gather_facts: false
+  any_errors_fatal: true
+  vars_prompt:
+    - name: ireallymeanit  # noqa: name[casing]
+      prompt: Are you sure you want to switch from non-containerized to containerized ceph daemons?
+      default: 'no'
+      private: false
+
+  tasks:
+    - name: Import ceph-defaults role
+      ansible.builtin.import_role:
+        name: ceph-defaults
+
+    - name: Fail when less than three monitors
+      ansible.builtin.fail:
+        msg: "This playbook requires at least three monitors."
+      when: groups[mon_group_name] | length | int < 3
+
+    - name: Exit playbook, if user did not mean to switch from non-containerized to containerized daemons?
+      ansible.builtin.fail:
+        msg: >
+          "Exiting switch-from-non-containerized-to-containerized-ceph-daemons.yml playbook,
+           cluster did not switch from non-containerized to containerized ceph daemons.
+           To switch from non-containerized to containerized ceph daemons, either say 'yes' on the prompt or
+           or use `-e ireallymeanit=yes` on the command line when
+           invoking the playbook"
+      when: ireallymeanit != 'yes'
+
+
+- name: Gather facts
+
+  hosts:
+    - "{{ mon_group_name|default('mons') }}"
+    - "{{ mgr_group_name|default('mgrs') }}"
+    - "{{ osd_group_name|default('osds') }}"
+    - "{{ mds_group_name|default('mdss') }}"
+    - "{{ rgw_group_name|default('rgws') }}"
+    - "{{ rbdmirror_group_name|default('rbdmirrors') }}"
+    - "{{ nfs_group_name|default('nfss') }}"
+
+  become: true
+
+  vars:
+    delegate_facts_host: true
+
+  tasks:
+    - name: Import ceph-defaults role
+      ansible.builtin.import_role:
+        name: ceph-defaults
+
+    - name: Gather and delegate facts
+      ansible.builtin.setup:
+        gather_subset:
+          - 'all'
+          - '!facter'
+          - '!ohai'
+      delegate_to: "{{ item }}"
+      delegate_facts: true
+      with_items: "{{ groups['all'] | difference(groups.get(client_group_name, [])) }}"
+      run_once: true
+      when: delegate_facts_host | bool
+      tags: always
+
+    - name: Import ceph-facts role
+      ansible.builtin.import_role:
+        name: ceph-facts
+
+    - name: Import ceph-validate role
+      ansible.builtin.import_role:
+        name: ceph-validate
+
+- name: Switching from non-containerized to containerized ceph mon
+  vars:
+    containerized_deployment: true
+    switch_to_containers: true
+    mon_group_name: mons
+  hosts: "{{ mon_group_name|default('mons') }}"
+  serial: 1
+  become: true
+  pre_tasks:
+    - name: Select a running monitor
+      ansible.builtin.set_fact:
+        mon_host: "{{ item }}"
+      with_items: "{{ groups[mon_group_name] }}"
+      when: item != inventory_hostname
+
+    - name: Stop non-containerized ceph mon
+      ansible.builtin.service:
+        name: "ceph-mon@{{ ansible_facts['hostname'] }}"
+        state: stopped
+        enabled: false
+
+    - name: Remove old systemd unit files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - /usr/lib/systemd/system/ceph-mon@.service
+        - /usr/lib/systemd/system/ceph-mon.target
+        - /lib/systemd/system/ceph-mon@.service
+        - /lib/systemd/system/ceph-mon.target
+
+    - name: Import ceph-defaults role
+      ansible.builtin.import_role:
+        name: ceph-defaults
+
+    - name: Import ceph-facts role
+      ansible.builtin.import_role:
+        name: ceph-facts
+
+    # NOTE: changed from file module to raw find command for performance reasons
+    # The file module has to run checks on current ownership of all directories and files. This is unnecessary
+    # as in this case we know we want all owned by ceph user
+    - name: Set proper ownership on ceph directories
+      ansible.builtin.command: "find /var/lib/ceph/mon /etc/ceph -not -( -user {{ ceph_uid }} -or -group {{ ceph_uid }} -) -execdir chown -h {{ ceph_uid }}:{{ ceph_uid }} {} +"
+      changed_when: false
+
+    - name: Check for existing old leveldb file extension (ldb)
+      ansible.builtin.shell: stat /var/lib/ceph/mon/*/store.db/*.ldb
+      changed_when: false
+      failed_when: false
+      register: ldb_files
+
+    - name: Rename leveldb extension from ldb to sst
+      ansible.builtin.shell: rename -v .ldb .sst /var/lib/ceph/mon/*/store.db/*.ldb
+      changed_when: false
+      failed_when: false
+      when: ldb_files.rc == 0
+
+    - name: Copy mon initial keyring in /etc/ceph to satisfy fetch config task in ceph-container-common
+      ansible.builtin.command: cp /var/lib/ceph/mon/{{ cluster }}-{{ ansible_facts['hostname'] }}/keyring /etc/ceph/{{ cluster }}.mon.keyring
+      args:
+        creates: /etc/ceph/{{ cluster }}.mon.keyring
+      changed_when: false
+      failed_when: false
+
+  tasks:
+    - name: Import ceph-handler role
+      ansible.builtin.import_role:
+        name: ceph-handler
+
+    - name: Import ceph-container-engine role
+      ansible.builtin.import_role:
+        name: ceph-container-engine
+
+    - name: Import ceph-container-common role
+      ansible.builtin.import_role:
+        name: ceph-container-common
+
+    - name: Import ceph-mon role
+      ansible.builtin.import_role:
+        name: ceph-mon
+
+  post_tasks:
+    - name: Waiting for the monitor to join the quorum...
+      ansible.builtin.command: "{{ container_binary }} run --rm  -v /etc/ceph:/etc/ceph:z --entrypoint=ceph {{ ceph_docker_registry }}/{{ ceph_docker_image }}:{{ ceph_docker_image_tag }} --cluster {{ cluster }} quorum_status --format json"
+      register: ceph_health_raw
+      until: ansible_facts['hostname'] in (ceph_health_raw.stdout | trim | from_json)["quorum_names"]
+      changed_when: false
+      retries: "{{ health_mon_check_retries }}"
+      delay: "{{ health_mon_check_delay }}"
+
+- name: Switching from non-containerized to containerized ceph mgr
+
+  hosts: "{{ mgr_group_name|default('mgrs') }}"
+
+  vars:
+    containerized_deployment: true
+    mgr_group_name: mgrs
+
+  serial: 1
+  become: true
+  pre_tasks:
+    # failed_when: false is here because if we're
+    # working with a jewel cluster then ceph mgr
+    # will not exist
+    - name: Stop non-containerized ceph mgr(s)
+      ansible.builtin.service:
+        name: "ceph-mgr@{{ ansible_facts['hostname'] }}"
+        state: stopped
+        enabled: false
+      failed_when: false
+
+    - name: Remove old systemd unit files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - /usr/lib/systemd/system/ceph-mgr@.service
+        - /usr/lib/systemd/system/ceph-mgr.target
+        - /lib/systemd/system/ceph-mgr@.service
+        - /lib/systemd/system/ceph-mgr.target
+
+    - name: Import ceph-defaults role
+      ansible.builtin.import_role:
+        name: ceph-defaults
+
+    - name: Import ceph-facts role
+      ansible.builtin.import_role:
+        name: ceph-facts
+
+    # NOTE: changed from file module to raw find command for performance reasons
+    # The file module has to run checks on current ownership of all directories and files. This is unnecessary
+    # as in this case we know we want all owned by ceph user
+    - name: Set proper ownership on ceph directories
+      ansible.builtin.command: "find /var/lib/ceph/mgr /etc/ceph -not -( -user {{ ceph_uid }} -or -group {{ ceph_uid }} -) -execdir chown -h {{ ceph_uid }}:{{ ceph_uid }} {} +"
+      changed_when: false
+
+  tasks:
+    - name: Import ceph-handler role
+      ansible.builtin.import_role:
+        name: ceph-handler
+
+    - name: Import ceph-container-engine role
+      ansible.builtin.import_role:
+        name: ceph-container-engine
+
+    - name: Import ceph-container-common role
+      ansible.builtin.import_role:
+        name: ceph-container-common
+
+    - name: Import ceph-mgr role
+      ansible.builtin.import_role:
+        name: ceph-mgr
+
+
+- name: Set osd flags
+  hosts: "{{ mon_group_name | default('mons') }}[0]"
+  become: true
+  tasks:
+    - name: Import ceph-defaults role
+      ansible.builtin.import_role:
+        name: ceph-defaults
+
+    - name: Import ceph-facts role
+      ansible.builtin.import_role:
+        name: ceph-facts
+        tasks_from: container_binary.yml
+
+    - name: Get pool list
+      ansible.builtin.command: "{{ ceph_cmd }} --cluster {{ cluster }} osd pool ls detail -f json"
+      register: pool_list
+      changed_when: false
+      check_mode: false
+
+    - name: Get balancer module status
+      ansible.builtin.command: "{{ ceph_cmd }} --cluster {{ cluster }} balancer status -f json"
+      register: balancer_status_switch
+      changed_when: false
+      check_mode: false
+
+    - name: Set_fact pools_pgautoscaler_mode
+      ansible.builtin.set_fact:
+        pools_pgautoscaler_mode: "{{ pools_pgautoscaler_mode | default([]) | union([{'name': item.pool_name, 'mode': item.pg_autoscale_mode}]) }}"
+      with_items: "{{ pool_list.stdout | default('{}') | from_json }}"
+
+    - name: Disable balancer
+      ansible.builtin.command: "{{ ceph_cmd }} --cluster {{ cluster }} balancer off"
+      changed_when: false
+      when: (balancer_status_switch.stdout | from_json)['active'] | bool
+
+    - name: Disable pg autoscale on pools
+      ceph_pool:
+        name: "{{ item.name }}"
+        cluster: "{{ cluster }}"
+        pg_autoscale_mode: false
+      with_items: "{{ pools_pgautoscaler_mode }}"
+      when:
+        - pools_pgautoscaler_mode is defined
+        - item.mode == 'on'
+      environment:
+        CEPH_CONTAINER_IMAGE: "{{ ceph_docker_registry + '/' + ceph_docker_image + ':' + ceph_docker_image_tag if containerized_deployment | bool else None }}"
+        CEPH_CONTAINER_BINARY: "{{ container_binary }}"
+
+    - name: Set osd flags
+      ceph_osd_flag:
+        name: "{{ item }}"
+        cluster: "{{ cluster }}"
+      environment:
+        CEPH_CONTAINER_IMAGE: "{{ ceph_docker_registry + '/' + ceph_docker_image + ':' + ceph_docker_image_tag if containerized_deployment | bool else None }}"
+        CEPH_CONTAINER_BINARY: "{{ container_binary }}"
+      with_items:
+        - noout
+        - nodeep-scrub
+
+
+- name: Switching from non-containerized to containerized ceph osd
+
+  vars:
+    containerized_deployment: true
+    osd_group_name: osds
+    switch_to_containers: true
+
+  hosts: "{{ osd_group_name|default('osds') }}"
+
+  serial: 1
+  become: true
+  pre_tasks:
+
+    - name: Import ceph-defaults role
+      ansible.builtin.import_role:
+        name: ceph-defaults
+
+    - name: Collect running osds
+      ansible.builtin.shell: |
+        set -o pipefail;
+        systemctl list-units | grep -E "loaded * active" | grep -Eo 'ceph-osd@[0-9]+.service|ceph-volume'
+      register: running_osds
+      changed_when: false
+      failed_when: false
+
+    # systemd module does not support --runtime option
+    - name: Disable ceph-osd@.service runtime-enabled
+      ansible.builtin.command: "systemctl disable --runtime {{ item }}"  # noqa command-instead-of-module
+      changed_when: false
+      failed_when: false
+      with_items: "{{ running_osds.stdout_lines | default([]) }}"
+      when: item.startswith('ceph-osd@')
+
+    - name: Stop/disable/mask non-containerized ceph osd(s) (if any)
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: stopped
+        enabled: false
+      with_items: "{{ running_osds.stdout_lines | default([]) }}"
+      when: running_osds != []
+
+    - name: Disable ceph.target
+      ansible.builtin.systemd:
+        name: ceph.target
+        enabled: false
+
+    - name: Remove old ceph-osd systemd units
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - /usr/lib/systemd/system/ceph-osd.target
+        - /usr/lib/systemd/system/ceph-osd@.service
+        - /usr/lib/systemd/system/ceph-volume@.service
+        - /lib/systemd/system/ceph-osd.target
+        - /lib/systemd/system/ceph-osd@.service
+        - /lib/systemd/system/ceph-volume@.service
+
+    - name: Import ceph-facts role
+      ansible.builtin.import_role:
+        name: ceph-facts
+
+    # NOTE: changed from file module to raw find command for performance reasons
+    # The file module has to run checks on current ownership of all directories and files. This is unnecessary
+    # as in this case we know we want all owned by ceph user
+    - name: Set proper ownership on ceph directories
+      ansible.builtin.command: "find /var/lib/ceph/osd /etc/ceph -not -( -user {{ ceph_uid }} -or -group {{ ceph_uid }} -) -execdir chown -h {{ ceph_uid }}:{{ ceph_uid }} {} +"
+      changed_when: false
+
+    - name: Check for existing old leveldb file extension (ldb)
+      ansible.builtin.shell: stat /var/lib/ceph/osd/*/current/omap/*.ldb
+      changed_when: false
+      failed_when: false
+      register: ldb_files
+
+    - name: Rename leveldb extension from ldb to sst
+      ansible.builtin.shell: rename -v .ldb .sst /var/lib/ceph/osd/*/current/omap/*.ldb
+      changed_when: false
+      failed_when: false
+      when: ldb_files.rc == 0
+
+    - name: Check if containerized osds are already running
+      ansible.builtin.command: >
+        {{ container_binary }} ps -q --filter='name=ceph-osd'
+      changed_when: false
+      failed_when: false
+      register: osd_running
+
+    - name: Get osd directories
+      ansible.builtin.command: >
+        find /var/lib/ceph/osd {% if dmcrypt | bool %}/var/lib/ceph/osd-lockbox{% endif %} -maxdepth 1 -mindepth 1 -type d
+      register: osd_dirs
+      changed_when: false
+      failed_when: false
+
+    - name: Unmount all the osd directories
+      ansible.builtin.command: >
+        umount {{ item }}
+      changed_when: false
+      failed_when: false
+      with_items: "{{ osd_dirs.stdout_lines }}"
+      when: osd_running.rc != 0 or osd_running.stdout_lines | length == 0
+
+  tasks:
+    - name: Import ceph-handler role
+      ansible.builtin.import_role:
+        name: ceph-handler
+
+    - name: Import ceph-container-common role
+      ansible.builtin.import_role:
+        name: ceph-container-engine
+
+    - name: Import ceph-container-common role
+      ansible.builtin.import_role:
+        name: ceph-container-common
+
+    - name: Import ceph-osd role
+      ansible.builtin.import_role:
+        name: ceph-osd
+
+  post_tasks:
+    - name: Container - waiting for clean pgs...
+      ansible.builtin.command: >
+        {{ container_binary }} exec ceph-mon-{{ hostvars[groups[mon_group_name][0]]['ansible_facts']['hostname'] }} ceph --cluster {{ cluster }} pg stat --format json
+      register: ceph_health_post
+      until: >
+        (((ceph_health_post.stdout | from_json).pg_summary.num_pg_by_state | length) > 0)
+        and
+        (((ceph_health_post.stdout | from_json).pg_summary.num_pg_by_state | selectattr('name', 'search', '^active\\+clean') | map(attribute='num') | list | sum) == (ceph_health_post.stdout | from_json).pg_summary.num_pgs)
+      delegate_to: "{{ groups[mon_group_name][0] }}"
+      retries: "{{ health_osd_check_retries }}"
+      delay: "{{ health_osd_check_delay }}"
+      changed_when: false
+
+
+- name: Unset osd flags
+  hosts: "{{ mon_group_name | default('mons') }}[0]"
+  become: true
+  tasks:
+    - name: Import ceph-defaults role
+      ansible.builtin.import_role:
+        name: ceph-defaults
+
+    - name: Import ceph-facts role
+      ansible.builtin.import_role:
+        name: ceph-facts
+        tasks_from: container_binary.yml
+
+    - name: Re-enable pg autoscale on pools
+      ceph_pool:
+        name: "{{ item.name }}"
+        cluster: "{{ cluster }}"
+        pg_autoscale_mode: true
+      with_items: "{{ pools_pgautoscaler_mode }}"
+      when:
+        - pools_pgautoscaler_mode is defined
+        - item.mode == 'on'
+      environment:
+        CEPH_CONTAINER_IMAGE: "{{ ceph_docker_registry + '/' + ceph_docker_image + ':' + ceph_docker_image_tag if containerized_deployment | bool else None }}"
+        CEPH_CONTAINER_BINARY: "{{ container_binary }}"
+
+    - name: Unset osd flags
+      ceph_osd_flag:
+        name: "{{ item }}"
+        cluster: "{{ cluster }}"
+        state: absent
+      environment:
+        CEPH_CONTAINER_IMAGE: "{{ ceph_docker_registry + '/' + ceph_docker_image + ':' + ceph_docker_image_tag if containerized_deployment | bool else None }}"
+        CEPH_CONTAINER_BINARY: "{{ container_binary }}"
+      with_items:
+        - noout
+        - nodeep-scrub
+
+    - name: Re-enable balancer
+      ansible.builtin.command: "{{ ceph_cmd }} --cluster {{ cluster }} balancer on"
+      changed_when: false
+      when: (balancer_status_switch.stdout | from_json)['active'] | bool
+
+
+- name: Switching from non-containerized to containerized ceph mds
+
+  hosts: "{{ mds_group_name|default('mdss') }}"
+
+  vars:
+    containerized_deployment: true
+    mds_group_name: mdss
+
+  serial: 1
+  become: true
+  pre_tasks:
+
+    - name: Stop non-containerized ceph mds(s)
+      ansible.builtin.service:
+        name: "ceph-mds@{{ ansible_facts['hostname'] }}"
+        state: stopped
+        enabled: false
+
+    - name: Remove old systemd unit files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - /usr/lib/systemd/system/ceph-mds@.service
+        - /usr/lib/systemd/system/ceph-mds.target
+        - /lib/systemd/system/ceph-mds@.service
+        - /lib/systemd/system/ceph-mds.target
+
+    - name: Import ceph-defaults role
+      ansible.builtin.import_role:
+        name: ceph-defaults
+
+    - name: Import ceph-facts role
+      ansible.builtin.import_role:
+        name: ceph-facts
+
+    # NOTE: changed from file module to raw find command for performance reasons
+    # The file module has to run checks on current ownership of all directories and files. This is unnecessary
+    # as in this case we know we want all owned by ceph user
+    - name: Set proper ownership on ceph directories
+      ansible.builtin.command: "find /var/lib/ceph/mds /etc/ceph -not -( -user {{ ceph_uid }} -or -group {{ ceph_uid }} -) -execdir chown {{ ceph_uid }}:{{ ceph_uid }} {} +"
+      changed_when: false
+
+  tasks:
+    - name: Import ceph-handler role
+      ansible.builtin.import_role:
+        name: ceph-handler
+
+    - name: Import ceph-container-engine role
+      ansible.builtin.import_role:
+        name: ceph-container-engine
+
+    - name: Import ceph-container-common role
+      ansible.builtin.import_role:
+        name: ceph-container-common
+
+    - name: Import ceph-mds role
+      ansible.builtin.import_role:
+        name: ceph-mds
+
+
+- name: Switching from non-containerized to containerized ceph rgw
+
+  hosts: "{{ rgw_group_name|default('rgws') }}"
+
+  vars:
+    containerized_deployment: true
+    rgw_group_name: rgws
+
+  serial: 1
+  become: true
+  pre_tasks:
+    - name: Import ceph-defaults role
+      ansible.builtin.import_role:
+        name: ceph-defaults
+
+    - name: Import ceph-facts role
+      ansible.builtin.import_role:
+        name: ceph-facts
+
+    - name: Import ceph-config role
+      ansible.builtin.import_role:
+        name: ceph-config
+        tasks_from: rgw_systemd_environment_file.yml
+
+    # NOTE: changed from file module to raw find command for performance reasons
+    # The file module has to run checks on current ownership of all directories and files. This is unnecessary
+    # as in this case we know we want all owned by ceph user
+    - name: Set proper ownership on ceph directories
+      ansible.builtin.command: "find /var/lib/ceph/radosgw /etc/ceph -not -( -user {{ ceph_uid }} -or -group {{ ceph_uid }} -) -execdir chown {{ ceph_uid }}:{{ ceph_uid }} {} +"
+      changed_when: false
+
+  tasks:
+    - name: Stop non-containerized ceph rgw(s)
+      ansible.builtin.service:
+        name: "ceph-radosgw@rgw.{{ rgw_zone }}.{{ ansible_facts['hostname'] }}.{{ item.instance_name }}"
+        state: stopped
+        enabled: false
+      with_items: "{{ rgw_instances }}"
+
+    - name: Remove old systemd unit files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - /usr/lib/systemd/system/ceph-radosgw@.service
+        - /usr/lib/systemd/system/ceph-radosgw.target
+        - /lib/systemd/system/ceph-radosgw@.service
+        - /lib/systemd/system/ceph-radosgw.target
+
+    - name: Import ceph-handler role
+      ansible.builtin.import_role:
+        name: ceph-handler
+
+    - name: Import ceph-container-engine role
+      ansible.builtin.import_role:
+        name: ceph-container-engine
+
+    - name: Import ceph-container-common role
+      ansible.builtin.import_role:
+        name: ceph-container-common
+
+    - name: Import ceph-rgw role
+      ansible.builtin.import_role:
+        name: ceph-rgw
+
+
+- name: Switching from non-containerized to containerized ceph rbd-mirror
+
+  hosts: "{{ rbdmirror_group_name|default('rbdmirrors') }}"
+
+  vars:
+    containerized_deployment: true
+    rbdmirror_group_name: rbdmirrors
+
+  serial: 1
+  become: true
+  pre_tasks:
+    - name: Check for ceph rbd mirror services
+      ansible.builtin.command: systemctl show --no-pager --property=Id ceph-rbd-mirror@*  # noqa: command-instead-of-module
+      changed_when: false
+      register: rbdmirror_services
+
+    - name: Stop non-containerized ceph rbd mirror(s)  # noqa: ignore-errors
+      ansible.builtin.service:
+        name: "{{ item.split('=')[1] }}"
+        state: stopped
+        enabled: false
+      ignore_errors: true
+      loop: "{{ rbdmirror_services.stdout_lines }}"
+
+    - name: Remove old systemd unit files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - /usr/lib/systemd/system/ceph-rbd-mirror@.service
+        - /usr/lib/systemd/system/ceph-rbd-mirror.target
+        - /lib/systemd/system/ceph-rbd-mirror@.service
+        - /lib/systemd/system/ceph-rbd-mirror.target
+
+    - name: Import ceph-defaults role
+      ansible.builtin.import_role:
+        name: ceph-defaults
+
+    - name: Import ceph-facts role
+      ansible.builtin.import_role:
+        name: ceph-facts
+
+    # NOTE: changed from file module to raw find command for performance reasons
+    # The file module has to run checks on current ownership of all directories and files. This is unnecessary
+    # as in this case we know we want all owned by ceph user
+    - name: Set proper ownership on ceph directories
+      ansible.builtin.command: "find /var/lib/ceph /etc/ceph -not -( -user {{ ceph_uid }} -or -group {{ ceph_uid }} -) -execdir chown {{ ceph_uid }}:{{ ceph_uid }} {} +"
+      changed_when: false
+
+  tasks:
+    - name: Import ceph-handler role
+      ansible.builtin.import_role:
+        name: ceph-handler
+
+    - name: Import ceph-container-engine role
+      ansible.builtin.import_role:
+        name: ceph-container-engine
+
+    - name: Import ceph-container-common role
+      ansible.builtin.import_role:
+        name: ceph-container-common
+
+    - name: Import ceph-rbd-mirror role
+      ansible.builtin.import_role:
+        name: ceph-rbd-mirror
+
+
+- name: Switching from non-containerized to containerized ceph nfs
+
+  hosts: "{{ nfs_group_name|default('nfss') }}"
+
+  vars:
+    containerized_deployment: true
+    nfs_group_name: nfss
+
+  serial: 1
+  become: true
+  pre_tasks:
+
+    # failed_when: false is here because if we're
+    # working with a jewel cluster then ceph nfs
+    # will not exist
+    - name: Stop non-containerized ceph nfs(s)
+      ansible.builtin.service:
+        name: nfs-ganesha
+        state: stopped
+        enabled: false
+      failed_when: false
+
+    - name: Import ceph-defaults role
+      ansible.builtin.import_role:
+        name: ceph-defaults
+
+    - name: Import ceph-facts role
+      ansible.builtin.import_role:
+        name: ceph-facts
+
+    # NOTE: changed from file module to raw find command for performance reasons
+    # The file module has to run checks on current ownership of all directories and files. This is unnecessary
+    # as in this case we know we want all owned by ceph user
+    - name: Set proper ownership on ceph directories
+      ansible.builtin.command: "find /var/lib/ceph /etc/ceph -not -( -user {{ ceph_uid }} -or -group {{ ceph_uid }} -) -execdir chown {{ ceph_uid }}:{{ ceph_uid }} {} +"
+      changed_when: false
+
+  tasks:
+    - name: Import ceph-handler role
+      ansible.builtin.import_role:
+        name: ceph-handler
+
+    - name: Import ceph-container-engine role
+      ansible.builtin.import_role:
+        name: ceph-container-engine
+
+    - name: Import ceph-container-common role
+      ansible.builtin.import_role:
+        name: ceph-container-common
+
+    - name: Import ceph-nfs role
+      ansible.builtin.import_role:
+        name: ceph-nfs
+
+- name: Switching from non-containerized to containerized ceph-crash
+
+  hosts:
+    - "{{ mon_group_name | default('mons') }}"
+    - "{{ osd_group_name | default('osds') }}"
+    - "{{ mds_group_name | default('mdss') }}"
+    - "{{ rgw_group_name | default('rgws') }}"
+    - "{{ rbdmirror_group_name | default('rbdmirrors') }}"
+    - "{{ mgr_group_name | default('mgrs') }}"
+
+  vars:
+    containerized_deployment: true
+  become: true
+  tasks:
+    - name: Stop non-containerized ceph-crash
+      ansible.builtin.service:
+        name: ceph-crash
+        state: stopped
+        enabled: false
+
+    - name: Import ceph-defaults role
+      ansible.builtin.import_role:
+        name: ceph-defaults
+
+    - name: Import ceph-facts role
+      ansible.builtin.import_role:
+        name: ceph-facts
+        tasks_from: container_binary.yml
+
+    - name: Import ceph-handler role
+      ansible.builtin.import_role:
+        name: ceph-handler
+
+    - name: Import ceph-crash role
+      ansible.builtin.import_role:
+        name: ceph-crash
+
+- name: Switching from non-containerized to containerized ceph-exporter
+
+  hosts:
+    - "{{ mon_group_name | default('mons') }}"
+    - "{{ osd_group_name | default('osds') }}"
+    - "{{ mds_group_name | default('mdss') }}"
+    - "{{ rgw_group_name | default('rgws') }}"
+    - "{{ rbdmirror_group_name | default('rbdmirrors') }}"
+    - "{{ mgr_group_name | default('mgrs') }}"
+
+  vars:
+    containerized_deployment: true
+  become: true
+  tasks:
+    - name: Import ceph-defaults role
+      ansible.builtin.import_role:
+        name: ceph-defaults
+
+    - name: Import ceph-facts role
+      ansible.builtin.import_role:
+        name: ceph-facts
+        tasks_from: container_binary.yml
+
+    - name: Import ceph-handler role
+      ansible.builtin.import_role:
+        name: ceph-handler
+
+    - name: Import ceph-exporter role
+      ansible.builtin.import_role:
+        name: ceph-exporter
+
+- name: Final task
+  hosts:
+    - "{{ mon_group_name|default('mons') }}"
+    - "{{ mgr_group_name|default('mgrs') }}"
+    - "{{ osd_group_name|default('osds') }}"
+    - "{{ mds_group_name|default('mdss') }}"
+    - "{{ rgw_group_name|default('rgws') }}"
+  vars:
+    containerized_deployment: true
+  become: true
+  tasks:
+    - name: Import ceph-defaults role
+      ansible.builtin.import_role:
+        name: ceph-defaults
+    # NOTE: changed from file module to raw find command for performance reasons
+    # The file module has to run checks on current ownership of all directories and files. This is unnecessary
+    # as in this case we know we want all owned by ceph user
+    - name: Set proper ownership on ceph directories
+      ansible.builtin.command: "find /var/lib/ceph /etc/ceph -not -( -user {{ ceph_uid }} -or -group {{ ceph_uid }} -) -execdir chown {{ ceph_uid }}:{{ ceph_uid }} {} +"
+      changed_when: false

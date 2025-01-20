@@ -1,0 +1,17 @@
+---
+- name: Include create_mds_filesystems.yml
+  ansible.builtin.include_tasks: create_mds_filesystems.yml
+  when:
+    - inventory_hostname == groups[mds_group_name] | first
+    - not rolling_update | bool
+
+- name: Include common.yml
+  ansible.builtin.include_tasks: common.yml
+
+- name: Non_containerized.yml
+  ansible.builtin.include_tasks: non_containerized.yml
+  when: not containerized_deployment | bool
+
+- name: Containerized.yml
+  ansible.builtin.include_tasks: containerized.yml
+  when: containerized_deployment | bool

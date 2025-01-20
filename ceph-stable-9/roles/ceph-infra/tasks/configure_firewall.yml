@@ -1,0 +1,257 @@
+---
+- name: Check firewalld installation on redhat or SUSE/openSUSE
+  ansible.builtin.command: rpm -q firewalld  # noqa command-instead-of-module
+  register: firewalld_pkg_query
+  ignore_errors: true
+  check_mode: false
+  changed_when: false
+  tags: firewall
+
+- name: Configuring firewalld
+  when: (firewalld_pkg_query.get('rc', 1) == 0
+         or is_atomic | bool)
+  tags: firewall
+  block:
+    - name: Install firewalld python binding
+      ansible.builtin.package:
+        name: "python{{ ansible_facts['python']['version']['major'] }}-firewall"
+      tags: with_pkg
+      when: not is_atomic | bool
+
+    - name: Start firewalld
+      ansible.builtin.service:
+        name: firewalld
+        state: started
+        enabled: true
+      register: result
+      retries: 5
+      delay: 3
+      until: result is succeeded
+
+    - name: Open ceph networks on monitor
+      ansible.posix.firewalld:
+        zone: "{{ ceph_mon_firewall_zone }}"
+        source: "{{ item }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      with_items: "{{ public_network.split(',') }}"
+      when:
+        - mon_group_name is defined
+        - mon_group_name in group_names
+
+    - name: Open ceph networks on manager when collocated
+      ansible.posix.firewalld:
+        zone: "{{ ceph_mgr_firewall_zone }}"
+        source: "{{ item }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      with_items: "{{ public_network.split(',') }}"
+      when:
+        - mon_group_name is defined
+        - mon_group_name in group_names
+        - mgr_group_name | length == 0
+
+    - name: Open monitor and manager ports
+      ansible.posix.firewalld:
+        service: "{{ item.service }}"
+        zone: "{{ item.zone }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      with_items:
+        - { 'service': 'ceph-mon', 'zone': "{{ ceph_mon_firewall_zone }}" }
+        - { 'service': 'ceph', 'zone': "{{ ceph_mgr_firewall_zone }}" }
+      when:
+        - mon_group_name is defined
+        - mon_group_name in group_names
+
+    - name: Open ceph networks on manager when dedicated
+      ansible.posix.firewalld:
+        zone: "{{ ceph_mgr_firewall_zone }}"
+        source: "{{ item }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      with_items: "{{ public_network.split(',') }}"
+      when:
+        - mgr_group_name is defined
+        - mgr_group_name in group_names
+        - mgr_group_name | length > 0
+
+    - name: Open manager ports
+      ansible.posix.firewalld:
+        service: ceph
+        zone: "{{ ceph_mgr_firewall_zone }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      when:
+        - mgr_group_name is defined
+        - mgr_group_name in group_names
+
+    - name: Open ceph networks on osd
+      ansible.posix.firewalld:
+        zone: "{{ ceph_osd_firewall_zone }}"
+        source: "{{ item }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      with_items: "{{ public_network.split(',') | union(cluster_network.split(',')) }}"
+      when:
+        - osd_group_name is defined
+        - osd_group_name in group_names
+
+    - name: Open osd ports
+      ansible.posix.firewalld:
+        service: ceph
+        zone: "{{ ceph_osd_firewall_zone }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      when:
+        - osd_group_name is defined
+        - osd_group_name in group_names
+
+    - name: Open ceph networks on rgw
+      ansible.posix.firewalld:
+        zone: "{{ ceph_rgw_firewall_zone }}"
+        source: "{{ item }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      with_items: "{{ public_network.split(',') }}"
+      when:
+        - rgw_group_name is defined
+        - rgw_group_name in group_names
+
+    - name: Open rgw ports
+      ansible.posix.firewalld:
+        port: "{{ item.radosgw_frontend_port }}/tcp"
+        zone: "{{ ceph_rgw_firewall_zone }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      loop: "{{ rgw_instances }}"
+      when:
+        - rgw_group_name is defined
+        - rgw_group_name in group_names
+
+    - name: Open ceph networks on mds
+      ansible.posix.firewalld:
+        zone: "{{ ceph_mds_firewall_zone }}"
+        source: "{{ item }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      with_items: "{{ public_network.split(',') }}"
+      when:
+        - mds_group_name is defined
+        - mds_group_name in group_names
+
+    - name: Open mds ports
+      ansible.posix.firewalld:
+        service: ceph
+        zone: "{{ ceph_mds_firewall_zone }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      with_items: "{{ public_network.split(',') }}"
+      when:
+        - mds_group_name is defined
+        - mds_group_name in group_names
+
+    - name: Open ceph networks on nfs
+      ansible.posix.firewalld:
+        zone: "{{ ceph_nfs_firewall_zone }}"
+        source: "{{ item }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      with_items: "{{ public_network.split(',') }}"
+      when:
+        - nfs_group_name is defined
+        - nfs_group_name in group_names
+
+    - name: Open nfs ports
+      ansible.posix.firewalld:
+        service: nfs
+        zone: "{{ ceph_nfs_firewall_zone }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      when:
+        - nfs_group_name is defined
+        - nfs_group_name in group_names
+
+    - name: Open nfs ports (portmapper)
+      ansible.posix.firewalld:
+        port: "111/tcp"
+        zone: "{{ ceph_nfs_firewall_zone }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      when:
+        - nfs_group_name is defined
+        - nfs_group_name in group_names
+
+    - name: Open ceph networks on rbdmirror
+      ansible.posix.firewalld:
+        zone: "{{ ceph_rbdmirror_firewall_zone }}"
+        source: "{{ item }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      with_items: "{{ public_network.split(',') }}"
+      when:
+        - rbdmirror_group_name is defined
+        - rbdmirror_group_name in group_names
+
+    - name: Open rbdmirror ports
+      ansible.posix.firewalld:
+        service: ceph
+        zone: "{{ ceph_rbdmirror_firewall_zone }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      when:
+        - rbdmirror_group_name is defined
+        - rbdmirror_group_name in group_names
+
+    - name: Open dashboard ports
+      ansible.builtin.include_tasks: dashboard_firewall.yml
+      when: dashboard_enabled | bool
+
+    - name: Open ceph networks on haproxy
+      ansible.posix.firewalld:
+        zone: "{{ ceph_rgwloadbalancer_firewall_zone }}"
+        source: "{{ item }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      with_items: "{{ public_network.split(',') }}"
+      when:
+        - rgwloadbalancer_group_name is defined
+        - rgwloadbalancer_group_name in group_names
+
+    - name: Open haproxy ports
+      ansible.posix.firewalld:
+        port: "{{ haproxy_frontend_port | default(80) }}/tcp"
+        zone: "{{ ceph_rgwloadbalancer_firewall_zone }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      when:
+        - rgwloadbalancer_group_name is defined
+        - rgwloadbalancer_group_name in group_names
+
+    - name: Add rich rule for keepalived vrrp
+      ansible.posix.firewalld:
+        rich_rule: 'rule protocol value="vrrp" accept'
+        permanent: true
+        immediate: true
+        state: enabled
+      when:
+        - rgwloadbalancer_group_name is defined
+        - rgwloadbalancer_group_name in group_names

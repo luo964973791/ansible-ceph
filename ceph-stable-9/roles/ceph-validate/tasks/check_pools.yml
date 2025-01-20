@@ -1,0 +1,10 @@
+---
+- name: Fail if target_size_ratio is not set when pg_autoscale_mode is True
+  ansible.builtin.fail:
+    msg: "You must set a target_size_ratio value on following pool: {{ item.name }}."
+  with_items:
+    - "{{ cephfs_pools | default([]) }}"
+    - "{{ pools | default([]) }}"
+  when:
+    - item.pg_autoscale_mode | default(False) | bool
+    - item.target_size_ratio is undefined

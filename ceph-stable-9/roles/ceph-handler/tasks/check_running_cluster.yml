@@ -1,0 +1,8 @@
+---
+- name: Include check_running_containers.yml
+  ansible.builtin.include_tasks: check_running_containers.yml
+  when: containerized_deployment | bool
+
+- name: Include check_socket_non_container.yml
+  ansible.builtin.include_tasks: check_socket_non_container.yml
+  when: not containerized_deployment | bool

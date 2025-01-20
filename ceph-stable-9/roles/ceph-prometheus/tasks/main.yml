@@ -1,0 +1,63 @@
+---
+- name: Create prometheus directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ prometheus_user_id }}"
+    group: "{{ prometheus_user_id }}"
+    mode: "0755"
+  with_items:
+    - "{{ prometheus_conf_dir }}"
+    - "{{ prometheus_data_dir }}"
+
+- name: Write prometheus config file
+  openstack.config_template.config_template:
+    src: prometheus.yml.j2
+    dest: "{{ prometheus_conf_dir }}/prometheus.yml"
+    owner: "{{ prometheus_user_id }}"
+    group: "{{ prometheus_user_id }}"
+    mode: "0640"
+    config_type: yaml
+    config_overrides: "{{ prometheus_conf_overrides }}"
+  notify: Service handler
+
+- name: Make sure the alerting rules directory exists
+  ansible.builtin.file:
+    path: "/etc/prometheus/alerting/"
+    state: directory
+    owner: "{{ prometheus_user_id }}"
+    group: "{{ prometheus_user_id }}"
+    mode: "0755"
+
+- name: Copy alerting rules
+  ansible.builtin.copy:
+    src: "ceph_dashboard.yml"
+    dest: "/etc/prometheus/alerting/ceph_dashboard.yml"
+    owner: "{{ prometheus_user_id }}"
+    group: "{{ prometheus_user_id }}"
+    mode: "0644"
+
+- name: Create alertmanager directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ prometheus_user_id }}"
+    group: "{{ prometheus_user_id }}"
+    mode: "0755"
+  with_items:
+    - "{{ alertmanager_conf_dir }}"
+    - "{{ alertmanager_data_dir }}"
+
+- name: Write alertmanager config file
+  openstack.config_template.config_template:
+    src: alertmanager.yml.j2
+    dest: "{{ alertmanager_conf_dir }}/alertmanager.yml"
+    owner: "{{ prometheus_user_id }}"
+    group: "{{ prometheus_user_id }}"
+    mode: "0640"
+    config_type: yaml
+    config_overrides: "{{ alertmanager_conf_overrides }}"
+  notify: Service handler
+
+- name: Include setup_container.yml
+  ansible.builtin.include_tasks: setup_container.yml

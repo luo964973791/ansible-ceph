@@ -1,0 +1,53 @@
+---
+- name: Fail on unsupported ansible version (1.X)
+  ansible.builtin.fail:
+    msg: "Ansible version must be >= 2.x, please update!"
+  when: ansible_version.major|int < 2
+
+- name: Fail on unsupported ansible version
+  ansible.builtin.fail:
+    msg: "Ansible version must be either 2.15 or 2.16!"
+  when: ansible_version.minor|int not in [15, 16]
+
+- name: Fail on unsupported system
+  ansible.builtin.fail:
+    msg: "System not supported {{ ansible_facts['system'] }}"
+  when: ansible_facts['system'] not in ['Linux']
+
+- name: Fail on unsupported architecture
+  ansible.builtin.fail:
+    msg: "Architecture not supported {{ ansible_facts['architecture'] }}"
+  when: ansible_facts['architecture'] not in ['x86_64', 'ppc64le', 'armv7l', 'aarch64']
+
+- name: Fail on unsupported distribution
+  ansible.builtin.fail:
+    msg: "Distribution not supported {{ ansible_facts['os_family'] }}"
+  when: ansible_facts['os_family'] not in ['Debian', 'RedHat', 'ClearLinux', 'Suse']
+
+- name: Fail on unsupported CentOS release
+  ansible.builtin.fail:
+    msg: "CentOS release {{ ansible_facts['distribution_major_version'] }} not supported with dashboard"
+  when:
+    - ansible_facts['distribution'] == 'CentOS'
+    - ansible_facts['distribution_major_version'] | int == 7
+    - not containerized_deployment | bool
+    - dashboard_enabled | bool
+
+- name: Fail on unsupported distribution for ubuntu cloud archive
+  ansible.builtin.fail:
+    msg: "Distribution not supported by Ubuntu Cloud Archive: {{ ansible_facts['distribution'] }}"
+  when:
+    - ceph_repository == 'uca'
+    - ansible_facts['distribution'] != 'Ubuntu'
+
+- name: Fail on unsupported SUSE/openSUSE distribution (only 15.x supported)
+  ansible.builtin.fail:
+    msg: "Distribution not supported: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_major_version'] }}"
+  when:
+    - ansible_facts['distribution'] == 'openSUSE Leap' or ansible_facts['distribution'] == 'SUSE'
+    - ansible_facts['distribution_major_version'] != '15'
+
+- name: Fail if systemd is not present
+  ansible.builtin.fail:
+    msg: "Systemd must be present"
+  when: ansible_facts['service_mgr'] != 'systemd'

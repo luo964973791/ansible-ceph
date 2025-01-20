@@ -1,0 +1,52 @@
+---
+- name: Configure cluster name
+  ansible.builtin.lineinfile:
+    dest: /etc/sysconfig/ceph
+    insertafter: EOF
+    create: true
+    line: "CLUSTER={{ cluster }}"
+    regexp: "^CLUSTER="
+    mode: "0644"
+  when: ansible_facts['os_family'] in ["RedHat", "Suse"]
+
+# NOTE(leseb): we are performing the following check
+# to ensure any Jewel installation will not fail.
+# The following commit https://github.com/ceph/ceph/commit/791eba81a5467dd5de4f1680ed0deb647eb3fb8b
+# fixed a package issue where the path was the wrong.
+# This bug is not yet on all the distros package so we are working around it
+# Impacted versions:
+# - Jewel from UCA: https://bugs.launchpad.net/ubuntu/+source/ceph/+bug/1582773
+# - Jewel from latest Canonical 16.04 distro
+# - All previous versions from Canonical
+# - Infernalis from ceph.com
+- name: Debian based systems - configure cluster name
+  when: ansible_facts['os_family'] == "Debian"
+  block:
+    - name: Check /etc/default/ceph exist
+      ansible.builtin.stat:
+        path: /etc/default/ceph
+      register: etc_default_ceph
+      check_mode: false
+
+    - name: Configure cluster name
+      when: etc_default_ceph.stat.exists
+      block:
+        - name: When /etc/default/ceph is not dir
+          ansible.builtin.lineinfile:
+            dest: /etc/default/ceph
+            insertafter: EOF
+            create: true
+            regexp: "^CLUSTER="
+            line: "CLUSTER={{ cluster }}"
+            mode: "0644"
+          when: not etc_default_ceph.stat.isdir
+
+        - name: When /etc/default/ceph is dir
+          ansible.builtin.lineinfile:
+            dest: /etc/default/ceph/ceph
+            insertafter: EOF
+            create: true
+            regexp: "^CLUSTER="
+            line: "CLUSTER={{ cluster }}"
+            mode: "0644"
+          when: etc_default_ceph.stat.isdir

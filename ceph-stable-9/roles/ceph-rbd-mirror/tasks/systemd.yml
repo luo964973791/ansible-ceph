@@ -1,0 +1,23 @@
+---
+- name: Generate systemd unit file
+  ansible.builtin.template:
+    src: "{{ role_path }}/templates/ceph-rbd-mirror.service.j2"
+    dest: /etc/systemd/system/ceph-rbd-mirror@.service
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  notify: Restart ceph rbdmirrors
+
+- name: Generate systemd ceph-rbd-mirror target file
+  ansible.builtin.copy:
+    src: ceph-rbd-mirror.target
+    dest: /etc/systemd/system/ceph-rbd-mirror.target
+    mode: "0644"
+  when: containerized_deployment | bool
+
+- name: Enable ceph-rbd-mirror.target
+  ansible.builtin.service:
+    name: ceph-rbd-mirror.target
+    enabled: true
+    daemon_reload: true
+  when: containerized_deployment | bool

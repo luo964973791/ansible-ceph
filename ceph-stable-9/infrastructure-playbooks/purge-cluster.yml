@@ -1,0 +1,1175 @@
+---
+# This playbook purges Ceph
+# It removes: packages, configuration files and ALL THE DATA
+#
+# Use it like this:
+# ansible-playbook purge-cluster.yml
+#     Prompts for confirmation to purge, defaults to no and
+#     doesn't purge the cluster. yes purges the cluster.
+#
+# ansible-playbook -e ireallymeanit=yes|no purge-cluster.yml
+#     Overrides the prompt using -e option. Can be used in
+#     automation scripts to avoid interactive prompt.
+
+- name: Confirm whether user really meant to purge the cluster
+  hosts: localhost
+  gather_facts: false
+  vars_prompt:
+    - name: ireallymeanit  # noqa: name[casing]
+      prompt: Are you sure you want to purge the cluster?
+      default: 'no'
+      private: false
+  tasks:
+    - name: Exit playbook, if user did not mean to purge cluster
+      ansible.builtin.fail:
+        msg: >
+          "Exiting purge-cluster playbook, cluster was NOT purged.
+           To purge the cluster, either say 'yes' on the prompt or
+           or use `-e ireallymeanit=yes` on the command line when
+           invoking the playbook"
+      when: ireallymeanit != 'yes'
+
+
+- name: Gather facts on all hosts
+  hosts:
+    - mons
+    - osds
+    - mdss
+    - rgws
+    - rbdmirrors
+    - nfss
+    - clients
+    - mgrs
+    - monitoring
+  become: true
+  tasks:
+    - name: Gather facts on all Ceph hosts for following reference
+      ansible.builtin.debug:
+        msg: "gather facts on all Ceph hosts for following reference"
+
+
+- name: Check there's no ceph kernel threads present
+  hosts: clients
+  become: true
+  gather_facts: false
+  any_errors_fatal: true
+  tasks:
+    - name: Import ceph-defaults
+      ansible.builtin.import_role:
+        name: ceph-defaults
+
+    - name: Nfs related tasks
+      when: groups[nfs_group_name] | default([]) | length > 0
+      block:
+        - name: Get nfs nodes ansible facts
+          ansible.builtin.setup:
+            gather_subset:
+              - 'all'
+              - '!facter'
+              - '!ohai'
+          delegate_to: "{{ item }}"
+          delegate_facts: true
+          with_items: "{{ groups[nfs_group_name] }}"
+          run_once: true
+
+        - name: Get all nfs-ganesha mount points
+          ansible.builtin.command: grep "{{ hostvars[item]['ansible_facts']['all_ipv4_addresses'] | ips_in_ranges(public_network.split(',')) | first }}" /proc/mounts
+          register: nfs_ganesha_mount_points
+          failed_when: false
+          changed_when: false
+          with_items: "{{ groups[nfs_group_name] }}"
+
+        - name: Ensure nfs-ganesha mountpoint(s) are unmounted
+          ansible.posix.mount:
+            path: "{{ item.split(' ')[1] }}"
+            state: unmounted
+          with_items:
+            - "{{ nfs_ganesha_mount_points.results | map(attribute='stdout_lines') | list }}"
+          when: item | length > 0
+
+    - name: Ensure cephfs mountpoint(s) are unmounted
+      ansible.builtin.command: umount -a -t ceph
+      changed_when: false
+
+    - name: Find mapped rbd ids
+      ansible.builtin.find:
+        paths: /sys/bus/rbd/devices
+        file_type: any
+      register: rbd_mapped_ids
+
+    - name: Use sysfs to unmap rbd devices
+      ansible.builtin.shell: "echo {{ item.path | basename }} > /sys/bus/rbd/remove_single_major"
+      changed_when: false
+      with_items: "{{ rbd_mapped_ids.files }}"
+
+    - name: Unload ceph kernel modules
+      community.general.modprobe:
+        name: "{{ item }}"
+        state: absent
+      with_items:
+        - rbd
+        - ceph
+        - libceph
+
+
+- name: Purge ceph nfs cluster
+  hosts: nfss
+  gather_facts: false # Already gathered previously
+  become: true
+  tasks:
+    - name: Import ceph-defaults role
+      ansible.builtin.import_role:
+        name: ceph-defaults
+
+    - name: Stop ceph nfss with systemd
+      ansible.builtin.service:
+        name: "{{ 'ceph-nfs@' + ansible_facts['hostname'] if containerized_deployment | bool else 'nfs-ganesha' }}"
+        state: stopped
+      failed_when: false
+
+    - name: Remove ceph nfs directories for "{{ ansible_facts['hostname'] }}"
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - /etc/ganesha
+        - /var/lib/nfs/ganesha
+        - /var/run/ganesha
+        - /etc/systemd/system/ceph-nfs@.service
+
+
+- name: Purge node-exporter
+  hosts:
+    - mons
+    - osds
+    - mdss
+    - rgws
+    - rbdmirrors
+    - nfss
+    - clients
+    - mgrs
+    - monitoring
+  become: true
+  tasks:
+    - name: Import ceph-defaults role
+      ansible.builtin.import_role:
+        name: ceph-defaults
+
+    - name: Dashboard related tasks
+      when: dashboard_enabled | bool
+      block:
+        - name: Import ceph-facts role
+          ansible.builtin.import_role:
+            name: ceph-facts
+            tasks_from: container_binary
+
+        - name: Disable node_exporter service
+          ansible.builtin.service:
+            name: node_exporter
+            state: stopped
+            enabled: false
+          failed_when: false
+
+        - name: Remove node_exporter service file
+          ansible.builtin.file:
+            name: /etc/systemd/system/node_exporter.service
+            state: absent
+
+        - name: Remove node-exporter image
+          ansible.builtin.command: "{{ container_binary }} rmi {{ node_exporter_container_image }}"
+          failed_when: false
+          changed_when: false
+          tags:
+            - remove_img
+
+
+- name: Purge ceph monitoring
+  hosts: monitoring
+  become: true
+  vars:
+    grafana_services:
+      - grafana-server
+      - prometheus
+      - alertmanager
+  tasks:
+    - name: Import ceph-defaults role
+      ansible.builtin.import_role:
+        name: ceph-defaults
+
+    - name: Dashboard related tasks
+      when: dashboard_enabled | bool
+      block:
+        - name: Import ceph-facts role
+          ansible.builtin.import_role:
+            name: ceph-facts
+            tasks_from: container_binary
+
+        - name: Stop services
+          ansible.builtin.service:
+            name: "{{ item }}"
+            state: stopped
+            enabled: false
+          with_items: "{{ grafana_services }}"
+          failed_when: false
+
+        - name: Remove service files
+          ansible.builtin.file:
+            name: "/etc/systemd/system/{{ item }}.service"
+            state: absent
+          with_items: "{{ grafana_services }}"
+          failed_when: false
+
+        - name: Remove ceph dashboard container images
+          ansible.builtin.command: "{{ container_binary }} rmi {{ item }}"
+          with_items:
+            - "{{ prometheus_container_image }}"
+            - "{{ grafana_container_image }}"
+            - "{{ alertmanager_container_image }}"
+          failed_when: false
+          changed_when: false
+          tags:
+            - remove_img
+
+        - name: Remove data
+          ansible.builtin.file:
+            name: "{{ item }}"
+            state: absent
+          with_items:
+            - /etc/grafana/dashboards
+            - /etc/grafana/grafana.ini
+            - /etc/grafana/provisioning
+            - /var/lib/grafana
+            - /etc/alertmanager
+            - /var/lib/alertmanager
+            - /var/lib/prometheus
+            - /etc/prometheus
+          failed_when: false
+
+
+- name: Purge ceph mds cluster
+  hosts: mdss
+  gather_facts: false # Already gathered previously
+  become: true
+  tasks:
+    - name: Stop ceph mdss with systemd
+      ansible.builtin.service:
+        name: ceph-mds@{{ ansible_facts['hostname'] }}
+        state: stopped
+        enabled: false
+      failed_when: false
+
+    - name: Remove ceph mds service
+      ansible.builtin.file:
+        path: /etc/systemd/system/ceph-mds{{ item }}
+        state: absent
+      loop:
+        - '@.service'
+        - '.target'
+
+
+- name: Purge ceph mgr cluster
+  hosts: mgrs
+  gather_facts: false # Already gathered previously
+  become: true
+  tasks:
+    - name: Stop ceph mgrs with systemd
+      ansible.builtin.service:
+        name: ceph-mgr@{{ ansible_facts['hostname'] }}
+        state: stopped
+        enabled: false
+      failed_when: false
+      when: ansible_facts['service_mgr'] == 'systemd'
+
+    - name: Remove ceph mgr service
+      ansible.builtin.file:
+        path: /etc/systemd/system/ceph-mgr{{ item }}
+        state: absent
+      loop:
+        - '@.service'
+        - '.target'
+
+- name: Purge rgwloadbalancer cluster
+  hosts: rgwloadbalancers
+  gather_facts: false # Already gathered previously
+  become: true
+  tasks:
+    - name: Stop rgwloadbalancer services
+      ansible.builtin.service:
+        name: ['keepalived', 'haproxy']
+        state: stopped
+        enabled: false
+      failed_when: false
+
+
+- name: Purge ceph rgw cluster
+  hosts: rgws
+  gather_facts: false # Already gathered previously
+  become: true
+  tasks:
+    - name: Import ceph-defaults role
+      ansible.builtin.import_role:
+        name: ceph-defaults
+
+    - name: Import ceph-facts role
+      ansible.builtin.import_role:
+        name: ceph-facts
+        tasks_from: set_radosgw_address
+
+    - name: Stop ceph rgws with systemd
+      ansible.builtin.service:
+        name: "ceph-radosgw@rgw.{{ rgw_zone }}.{{ ansible_facts['hostname'] }}.{{ item.instance_name }}"
+        state: stopped
+        enabled: false
+      failed_when: false
+      with_items: "{{ rgw_instances }}"
+
+    - name: Remove ceph rgw service
+      ansible.builtin.file:
+        path: /etc/systemd/system/ceph-radosgw{{ item }}
+        state: absent
+      loop:
+        - '@.service'
+        - '.target'
+
+
+- name: Purge ceph rbd-mirror cluster
+  hosts: rbdmirrors
+  gather_facts: false # Already gathered previously
+  become: true
+  tasks:
+    - name: Stop ceph rbd mirror with systemd
+      ansible.builtin.service:
+        name: "ceph-rbd-mirror@rbd-mirror.{{ ansible_facts['hostname'] }}"
+        state: stopped
+        enabled: false
+      failed_when: false
+
+    - name: Remove ceph rbd-mirror service
+      ansible.builtin.file:
+        path: /etc/systemd/system/ceph-rbd-mirror{{ item }}
+        state: absent
+      loop:
+        - '@.service'
+        - '.target'
+
+
+- name: Purge ceph osd cluster
+  vars:
+    reboot_osd_node: false
+  hosts: osds
+  gather_facts: false # Already gathered previously
+  become: true
+  handlers:
+    - name: Restart machine  # noqa: ignore-errors
+      ansible.builtin.shell: sleep 2 && shutdown -r now "Ansible updates triggered"
+      async: 1
+      poll: 0
+      ignore_errors: true
+      changed_when: false
+
+    - name: Wait for server to boot
+      become: false
+      ansible.builtin.wait_for:
+        port: 22
+        host: "{{ hostvars[inventory_hostname]['ansible_facts']['default_ipv4']['address'] }}"
+        state: started
+        delay: 10
+        timeout: 500
+        delegate_to: localhost
+
+    - name: Remove data
+      ansible.builtin.shell: rm -rf /var/lib/ceph/*  # noqa no-free-form
+      changed_when: false
+  tasks:
+    - name: Import ceph-defaults role
+      ansible.builtin.import_role:
+        name: ceph-defaults
+
+    - name: Import ceph-facts role
+      ansible.builtin.import_role:
+        name: ceph-facts
+        tasks_from: container_binary
+
+    - name: Default lvm_volumes if not defined
+      ansible.builtin.set_fact:
+        lvm_volumes: []
+      when: lvm_volumes is not defined
+
+    - name: Get osd numbers
+      ansible.builtin.shell: if [ -d /var/lib/ceph/osd ] ; then ls /var/lib/ceph/osd | sed 's/.*-//' ; fi  # noqa risky-shell-pipe
+      register: osd_ids
+      changed_when: false
+
+    - name: Stop ceph-osd
+      ansible.builtin.service:
+        name: ceph-osd@{{ item }}
+        state: stopped
+        enabled: false
+      with_items: "{{ osd_ids.stdout_lines }}"
+
+    - name: Remove ceph udev rules
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - /usr/lib/udev/rules.d/95-ceph-osd.rules
+        - /usr/lib/udev/rules.d/60-ceph-by-parttypeuuid.rules
+      when: not containerized_deployment | bool
+
+    # NOTE(leseb): hope someone will find a more elegant way one day...
+    - name: See if encrypted partitions are present
+      ansible.builtin.shell: blkid -t TYPE=crypto_LUKS -s PARTLABEL -s PARTUUID | grep "ceph.*." | grep -o PARTUUID.* | cut -d '"' -f 2  # noqa risky-shell-pipe
+      register: encrypted_ceph_partuuid
+      changed_when: false
+
+    - name: Get osd data and lockbox mount points
+      ansible.builtin.shell: (grep /var/lib/ceph/osd /proc/mounts || echo -n) | awk '{ print $2 }'  # noqa risky-shell-pipe
+      register: mounted_osd
+      changed_when: false
+
+    - name: Drop all cache
+      ansible.builtin.shell: "sync && sleep 1 && echo 3 > /proc/sys/vm/drop_caches"
+      changed_when: false
+
+    - name: See if ceph-volume is installed # noqa command-instead-of-shell
+      ansible.builtin.shell: command -v ceph-volume
+      changed_when: false
+      failed_when: false
+      register: ceph_volume_present
+      when: not containerized_deployment | bool
+
+    - name: Zap and destroy osds by osd ids
+      ceph_volume:
+        osd_id: "{{ item | int }}"
+        action: "zap"
+      environment:
+        CEPH_VOLUME_DEBUG: "{{ ceph_volume_debug }}"
+        CEPH_CONTAINER_IMAGE: "{{ ceph_docker_registry + '/' + ceph_docker_image + ':' + ceph_docker_image_tag if containerized_deployment | bool else None }}"
+        CEPH_CONTAINER_BINARY: "{{ container_binary }}"
+      with_items: "{{ osd_ids.stdout_lines }}"
+      when:
+        - osd_auto_discovery | default(False) | bool
+        - (containerized_deployment | bool or ceph_volume_present.rc == 0)
+
+    - name: Umount osd data partition
+      ansible.posix.mount:
+        path: "{{ item }}"
+        state: unmounted
+      with_items: "{{ mounted_osd.stdout_lines }}"
+
+    - name: Remove osd mountpoint tree
+      ansible.builtin.file:
+        path: /var/lib/ceph/osd/
+        state: absent
+      register: remove_osd_mountpoints
+      ignore_errors: true
+
+    - name: Is reboot needed
+      ansible.builtin.command: echo requesting reboot
+      delegate_to: localhost
+      become: false
+      notify:
+        - Restart machine
+        - Wait for server to boot
+        - Remove data
+      changed_when: false
+      when:
+        - reboot_osd_node | bool
+        - remove_osd_mountpoints.failed is defined
+
+    - name: Wipe table on dm-crypt devices
+      ansible.builtin.command: dmsetup wipe_table --force "{{ item }}"
+      with_items: "{{ encrypted_ceph_partuuid.stdout_lines }}"
+      changed_when: false
+      when: encrypted_ceph_partuuid.stdout_lines | length > 0
+
+    - name: Delete dm-crypt devices if any
+      ansible.builtin.command: dmsetup remove --retry --force {{ item }}
+      with_items: "{{ encrypted_ceph_partuuid.stdout_lines }}"
+      changed_when: false
+      when: encrypted_ceph_partuuid.stdout_lines | length > 0
+
+    - name: Get payload_offset
+      ansible.builtin.shell: cryptsetup luksDump /dev/disk/by-partuuid/{{ item }} | awk '/Payload offset:/ { print $3 }'  # noqa risky-shell-pipe
+      register: payload_offset
+      with_items: "{{ encrypted_ceph_partuuid.stdout_lines }}"
+      changed_when: false
+      when: encrypted_ceph_partuuid.stdout_lines | length > 0
+
+    - name: Get physical sector size
+      ansible.builtin.command: blockdev --getpbsz /dev/disk/by-partuuid/{{ item }}
+      changed_when: false
+      with_items: "{{ encrypted_ceph_partuuid.stdout_lines }}"
+      when: encrypted_ceph_partuuid.stdout_lines | length > 0
+      register: phys_sector_size
+
+    - name: Wipe dmcrypt device
+      ansible.builtin.command: dd if=/dev/zero of=/dev/disk/by-partuuid/{{ item.0 }} bs={{ item.1.stdout }} count={{ item.2.stdout }} oflag=direct
+      changed_when: false
+      with_together:
+        - "{{ encrypted_ceph_partuuid.stdout_lines }}"
+        - "{{ payload_offset.results }}"
+        - "{{ phys_sector_size.results }}"
+
+    - name: Get ceph data partitions
+      ansible.builtin.shell: |
+        blkid -o device -t PARTLABEL="ceph data"
+      changed_when: false
+      failed_when: false
+      register: ceph_data_partition_to_erase_path
+
+    - name: Get ceph lockbox partitions
+      ansible.builtin.shell: |
+        blkid -o device -t PARTLABEL="ceph lockbox"
+      changed_when: false
+      failed_when: false
+      register: ceph_lockbox_partition_to_erase_path
+
+    - name: See if ceph-volume is installed # noqa: command-instead-of-shell
+      ansible.builtin.shell: command -v ceph-volume
+      changed_when: false
+      failed_when: false
+      register: ceph_volume_present
+      when: not containerized_deployment | bool
+
+    - name: Zap and destroy osds created by ceph-volume with lvm_volumes
+      ceph_volume:
+        data: "{{ item.data }}"
+        data_vg: "{{ item.data_vg | default(omit) }}"
+        journal: "{{ item.journal | default(omit) }}"
+        journal_vg: "{{ item.journal_vg | default(omit) }}"
+        db: "{{ item.db | default(omit) }}"
+        db_vg: "{{ item.db_vg | default(omit) }}"
+        wal: "{{ item.wal | default(omit) }}"
+        wal_vg: "{{ item.wal_vg | default(omit) }}"
+        action: "zap"
+      environment:
+        CEPH_VOLUME_DEBUG: "{{ ceph_volume_debug }}"
+        CEPH_CONTAINER_IMAGE: "{{ ceph_docker_registry + '/' + ceph_docker_image + ':' + ceph_docker_image_tag if containerized_deployment | bool else None }}"
+        CEPH_CONTAINER_BINARY: "{{ container_binary }}"
+      with_items: "{{ lvm_volumes | default([]) }}"
+      when:
+        - containerized_deployment | bool
+          or ceph_volume_present.rc == 0
+
+    - name: Zap and destroy osds created by ceph-volume with devices
+      ceph_volume:
+        data: "{{ item }}"
+        action: "zap"
+      environment:
+        CEPH_VOLUME_DEBUG: "{{ ceph_volume_debug }}"
+        CEPH_CONTAINER_IMAGE: "{{ ceph_docker_registry + '/' + ceph_docker_image + ':' + ceph_docker_image_tag if containerized_deployment | bool else None }}"
+        CEPH_CONTAINER_BINARY: "{{ container_binary }}"
+      with_items:
+        - "{{ devices | default([]) }}"
+        - "{{ dedicated_devices | default([]) }}"
+        - "{{ bluestore_wal_devices | default([]) }}"
+      when:
+        - containerized_deployment | bool
+          or ceph_volume_present.rc == 0
+
+    - name: Get ceph block partitions
+      ansible.builtin.shell: |
+        blkid -o device -t PARTLABEL="ceph block"
+      changed_when: false
+      failed_when: false
+      register: ceph_block_partition_to_erase_path
+
+    - name: Get ceph journal partitions
+      ansible.builtin.shell: |
+        blkid -o device -t PARTLABEL="ceph journal"
+      changed_when: false
+      failed_when: false
+      register: ceph_journal_partition_to_erase_path
+
+    - name: Get ceph db partitions
+      ansible.builtin.shell: |
+        blkid -o device -t PARTLABEL="ceph block.db"
+      changed_when: false
+      failed_when: false
+      register: ceph_db_partition_to_erase_path
+
+    - name: Get ceph wal partitions
+      ansible.builtin.shell: |
+        blkid -o device -t PARTLABEL="ceph block.wal"
+      changed_when: false
+      failed_when: false
+      register: ceph_wal_partition_to_erase_path
+
+    - name: Set_fact combined_devices_list
+      ansible.builtin.set_fact:
+        combined_devices_list: "{{ ceph_data_partition_to_erase_path.stdout_lines +
+                                   ceph_lockbox_partition_to_erase_path.stdout_lines +
+                                   ceph_block_partition_to_erase_path.stdout_lines +
+                                   ceph_journal_partition_to_erase_path.stdout_lines +
+                                   ceph_db_partition_to_erase_path.stdout_lines +
+                                   ceph_wal_partition_to_erase_path.stdout_lines }}"
+
+    - name: Resolve parent device
+      ansible.builtin.command: lsblk --nodeps -no pkname "{{ item }}"
+      register: tmp_resolved_parent_device
+      changed_when: false
+      with_items: "{{ combined_devices_list }}"
+
+    - name: Set_fact resolved_parent_device
+      ansible.builtin.set_fact:
+        resolved_parent_device: "{{ tmp_resolved_parent_device.results | map(attribute='stdout') | list | unique }}"
+
+    - name: Wipe partitions
+      ansible.builtin.shell: |
+        wipefs --all "{{ item }}"
+        dd if=/dev/zero of="{{ item }}" bs=1 count=4096
+      changed_when: false
+      with_items: "{{ combined_devices_list }}"
+
+    - name: Check parent device partition
+      community.general.parted:
+        device: "/dev/{{ item }}"
+      loop: "{{ resolved_parent_device }}"
+      register: parted_info
+
+    - name: Fail if there is a boot partition on the device
+      ansible.builtin.fail:
+        msg: "{{ item.item }} has a boot partition"
+      loop: "{{ parted_info.results }}"
+      when: "'boot' in (item.partitions | map(attribute='flags') | list | flatten)"
+
+    - name: Zap ceph journal/block db/block wal partitions  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        sgdisk -Z --clear --mbrtogpt -g -- /dev/"{{ item }}"
+        dd if=/dev/zero of=/dev/"{{ item }}" bs=1M count=200
+        parted -s /dev/"{{ item }}" mklabel gpt
+        partprobe /dev/"{{ item }}"
+        udevadm settle --timeout=600
+      with_items: "{{ resolved_parent_device }}"
+      changed_when: false
+
+    - name: Remove ceph osd service
+      ansible.builtin.file:
+        path: /etc/systemd/system/ceph-osd{{ item }}
+        state: absent
+      loop:
+        - '@.service'
+        - '.target'
+
+- name: Purge ceph mon cluster
+  hosts: mons
+  gather_facts: false # already gathered previously
+  become: true
+  tasks:
+    - name: Stop ceph mons with systemd
+      ansible.builtin.service:
+        name: "ceph-{{ item }}@{{ ansible_facts['hostname'] }}"
+        state: stopped
+        enabled: false
+      failed_when: false
+      with_items:
+        - mon
+        - mgr
+
+    - name: Remove monitor store and bootstrap keys
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - /var/lib/ceph/mon
+        - /var/lib/ceph/bootstrap-mds
+        - /var/lib/ceph/bootstrap-osd
+        - /var/lib/ceph/bootstrap-rgw
+        - /var/lib/ceph/bootstrap-rbd
+        - /var/lib/ceph/bootstrap-mgr
+        - /var/lib/ceph/tmp
+
+    - name: Remove ceph mon and mgr service
+      ansible.builtin.file:
+        path: "/etc/systemd/system/ceph-{{ item.0 }}{{ item.1 }}"
+        state: absent
+      loop: "{{ ['mon', 'mgr'] | product(['@.service', '.target']) | list }}"
+
+
+- name: Purge ceph-crash daemons
+  hosts:
+    - mons
+    - osds
+    - mdss
+    - rgws
+    - rbdmirrors
+    - mgrs
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Import ceph-defaults role
+      ansible.builtin.import_role:
+        name: ceph-defaults
+
+    - name: Stop ceph-crash service
+      ansible.builtin.service:
+        name: "{{ 'ceph-crash@' + ansible_facts['hostname'] if containerized_deployment | bool else 'ceph-crash.service' }}"
+        state: stopped
+        enabled: false
+      failed_when: false
+
+    - name: Systemctl reset-failed ceph-crash  # noqa command-instead-of-module
+      ansible.builtin.command: "systemctl reset-failed {{ 'ceph-crash@' + ansible_facts['hostname'] if containerized_deployment | bool else 'ceph-crash.service' }}"
+      changed_when: false
+      failed_when: false
+
+    - name: Remove service file
+      ansible.builtin.file:
+        name: "/etc/systemd/system/ceph-crash{{ '@' if containerized_deployment | bool else '' }}.service"
+        state: absent
+      failed_when: false
+
+    - name: Remove /var/lib/ceph/crash
+      ansible.builtin.file:
+        path: /var/lib/ceph/crash
+        state: absent
+
+
+- name: Purge ceph-exporter daemons
+  hosts:
+    - mons
+    - osds
+    - mdss
+    - rgws
+    - rbdmirrors
+    - mgrs
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Import ceph-defaults role
+      ansible.builtin.import_role:
+        name: ceph-defaults
+
+    - name: Stop ceph-exporter service
+      ansible.builtin.service:
+        name: "{{ 'ceph-exporter@' + ansible_facts['hostname'] if containerized_deployment | bool else 'ceph-exporter.service' }}"
+        state: stopped
+        enabled: false
+      failed_when: false
+
+    - name: Systemctl reset-failed ceph-exporter  # noqa command-instead-of-module
+      ansible.builtin.command: "systemctl reset-failed {{ 'ceph-exporter@' + ansible_facts['hostname'] if containerized_deployment | bool else 'ceph-exporter.service' }}"
+      changed_when: false
+      failed_when: false
+
+    - name: Remove service file
+      ansible.builtin.file:
+        name: "/etc/systemd/system/ceph-exporter{{ '@' if containerized_deployment | bool else '' }}.service"
+        state: absent
+      failed_when: false
+
+
+- name: Check container hosts
+  hosts:
+    - mons
+    - osds
+    - mdss
+    - rgws
+    - rbdmirrors
+    - nfss
+    - mgrs
+  become: true
+  tasks:
+    - name: Containerized_deployment only
+      when: containerized_deployment | bool
+      block:
+        - name: Import ceph-defaults role
+          ansible.builtin.import_role:
+            name: ceph-defaults
+
+        - name: Import ceph-facts role
+          ansible.builtin.import_role:
+            name: ceph-facts
+            tasks_from: container_binary
+
+        - name: Remove stopped/exited containers
+          ansible.builtin.command: >
+            {{ container_binary }} container prune -f
+          changed_when: false
+
+        - name: Show container list on all the nodes (should be empty)
+          ansible.builtin.command: >
+            {{ container_binary }} ps --filter='name=ceph' -a -q
+          register: containers_list
+          changed_when: false
+
+        - name: Show container images on all the nodes (should be empty if tags was passed remove_img)
+          ansible.builtin.command: >
+            {{ container_binary }} images
+          register: images_list
+          changed_when: false
+
+        - name: Fail if container are still present
+          ansible.builtin.fail:
+            msg: "It looks like container are still present."
+          when: containers_list.stdout_lines | length > 0
+
+
+- name: Final cleanup - check any running ceph, purge ceph packages, purge config and remove data
+  vars:
+    # When set to true both groups of packages are purged.
+    # This can cause problem with qemu-kvm
+    purge_all_packages: true
+    ceph_packages:
+      - ceph
+      - ceph-base
+      - ceph-common
+      - ceph-fuse
+      - ceph-mds
+      - ceph-mgr
+      - ceph-mgr-modules-core
+      - ceph-mon
+      - ceph-osd
+      - ceph-release
+      - ceph-radosgw
+      - ceph-grafana-dashboards
+      - rbd-mirror
+    ceph_remaining_packages:
+      - libcephfs2
+      - librados2
+      - libradosstriper1
+      - librbd1
+      - librgw2
+      - python3-ceph-argparse
+      - python3-ceph-common
+      - python3-cephfs
+      - python3-rados
+      - python3-rbd
+      - python3-rgw
+    extra_packages:
+      - keepalived
+      - haproxy
+  hosts:
+    - mons
+    - osds
+    - mdss
+    - rgws
+    - rbdmirrors
+    - nfss
+    - clients
+    - mgrs
+    - monitoring
+  gather_facts: false # Already gathered previously
+  become: true
+  handlers:
+    - name: Get osd data and lockbox mount points
+      ansible.builtin.shell: "set -o pipefail && (grep /var/lib/ceph/osd /proc/mounts || echo -n) | awk '{ print $2 }'"
+      register: mounted_osd
+      changed_when: false
+      listen: "Remove data"
+
+    - name: Umount osd data partition
+      ansible.posix.mount:
+        path: "{{ item }}"
+        state: unmounted
+      with_items: "{{ mounted_osd.stdout_lines }}"
+      listen: "Remove data"
+
+    - name: Remove data
+      ansible.builtin.shell: rm -rf /var/lib/ceph/*  # noqa no-free-form
+      changed_when: false
+      listen: "Remove data"
+  tasks:
+    - name: Import ceph-defaults role
+      ansible.builtin.import_role:
+        name: ceph-defaults
+
+    - name: Non containerized related tasks
+      when: not containerized_deployment | bool
+      block:
+        - name: Purge ceph packages with yum
+          ansible.builtin.yum:
+            name: "{{ ceph_packages }}"
+            state: absent
+          when: ansible_facts['pkg_mgr'] == 'yum'
+
+        - name: Purge ceph packages with dnf
+          ansible.builtin.dnf:
+            name: "{{ ceph_packages }}"
+            state: absent
+          when: ansible_facts['pkg_mgr'] == 'dnf'
+
+        - name: Purge ceph packages with apt
+          ansible.builtin.apt:
+            name: "{{ ceph_packages }}"
+            state: absent
+            purge: true
+          when: ansible_facts['pkg_mgr'] == 'apt'
+
+        - name: Purge remaining ceph packages with yum
+          ansible.builtin.yum:
+            name: "{{ ceph_remaining_packages }}"
+            state: absent
+          when:
+            - ansible_facts['pkg_mgr'] == 'yum'
+            - purge_all_packages | bool
+
+        - name: Purge remaining ceph packages with dnf
+          ansible.builtin.dnf:
+            name: "{{ ceph_remaining_packages }}"
+            state: absent
+          when:
+            - ansible_facts['pkg_mgr'] == 'dnf'
+            - purge_all_packages | bool
+
+        - name: Purge remaining ceph packages with apt
+          ansible.builtin.apt:
+            name: "{{ ceph_remaining_packages }}"
+            state: absent
+          when:
+            - ansible_facts['pkg_mgr'] == 'apt'
+            - purge_all_packages | bool
+
+        - name: Purge extra packages with yum
+          ansible.builtin.yum:
+            name: "{{ extra_packages }}"
+            state: absent
+          when:
+            - ansible_facts['pkg_mgr'] == 'yum'
+            - purge_all_packages | bool
+
+        - name: Purge extra packages with dnf
+          ansible.builtin.dnf:
+            name: "{{ extra_packages }}"
+            state: absent
+          when:
+            - ansible_facts['pkg_mgr'] == 'dnf'
+            - purge_all_packages | bool
+
+        - name: Purge extra packages with apt
+          ansible.builtin.apt:
+            name: "{{ extra_packages }}"
+            state: absent
+          when:
+            - ansible_facts['pkg_mgr'] == 'apt'
+            - purge_all_packages | bool
+
+        - name: Remove config and any ceph socket left
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          with_items:
+            - /etc/ceph
+            - /etc/keepalived
+            - /etc/haproxy
+            - /run/ceph
+
+        - name: Remove logs
+          ansible.builtin.file:
+            path: /var/log/ceph
+            state: absent
+
+        - name: Request data removal
+          ansible.builtin.command: echo requesting data removal  # noqa no-changed-when
+          become: false
+          delegate_to: localhost
+          notify: Remove data
+
+        - name: Purge dnf cache
+          ansible.builtin.command: dnf clean all
+          changed_when: false
+          when: ansible_facts['pkg_mgr'] == 'dnf'
+
+        - name: Clean apt
+          ansible.builtin.command: apt-get clean  # noqa command-instead-of-module
+          changed_when: false
+          when: ansible_facts['pkg_mgr'] == 'apt'
+
+        - name: Purge ceph repo file in /etc/yum.repos.d
+          ansible.builtin.file:
+            path: '/etc/yum.repos.d/{{ item }}.repo'
+            state: absent
+          with_items:
+            - ceph-dev
+            - ceph_stable
+          when: ansible_facts['os_family'] == 'RedHat'
+
+        - name: Check for anything running ceph
+          ansible.builtin.command: "ps -u ceph -U ceph"
+          register: check_for_running_ceph
+          changed_when: false
+          failed_when: check_for_running_ceph.rc == 0
+
+        - name: Find ceph systemd unit files to remove
+          ansible.builtin.find:
+            paths: "/etc/systemd/system"
+            pattern: "ceph*"
+            recurse: true
+            file_type: any
+          register: systemd_files
+
+        - name: Remove ceph systemd unit files
+          ansible.builtin.file:
+            path: "{{ item.path }}"
+            state: absent
+          with_items: "{{ systemd_files.files }}"
+          when: ansible_facts['service_mgr'] == 'systemd'
+
+    - name: Containerized related tasks
+      when: containerized_deployment | bool
+      block:
+        - name: Check if it is Atomic host
+          ansible.builtin.stat:
+            path: /run/ostree-booted
+          register: stat_ostree
+
+        - name: Set fact for using Atomic host
+          ansible.builtin.set_fact:
+            is_atomic: "{{ stat_ostree.stat.exists }}"
+
+        - name: Import ceph-facts role
+          ansible.builtin.import_role:
+            name: ceph-facts
+            tasks_from: container_binary
+
+        - name: Remove ceph container image
+          ansible.builtin.command: "{{ container_binary }} rmi {{ ceph_docker_registry }}/{{ ceph_docker_image }}:{{ ceph_docker_image_tag }}"
+          changed_when: false
+          when:
+            - inventory_hostname not in groups.get(client_group_name, [])
+              or inventory_hostname == groups.get(client_group_name, []) | first
+          tags:
+            - remove_img
+
+        - name: Stop docker service  # noqa: ignore-errors
+          ansible.builtin.service:
+            name: docker
+            state: stopped
+            enabled: false
+          when:
+            - not is_atomic
+            - container_binary == 'docker'
+          ignore_errors: true
+          tags:
+            - remove_docker
+
+        - name: Remove docker on debian/ubuntu
+          ansible.builtin.apt:
+            name: ['docker-ce', 'docker-engine', 'docker.io', 'python-docker', 'python3-docker']
+            state: absent
+            update_cache: true
+            autoremove: true
+          when: ansible_facts['os_family'] == 'Debian'
+          tags:
+            - remove_docker
+
+        - name: Red hat based systems tasks
+          when:
+            ansible_facts['os_family'] == 'RedHat' and
+            not is_atomic
+          tags:
+            - remove_docker
+          block:
+            - name: Yum related tasks on red hat
+              when: ansible_facts['pkg_mgr'] == "yum"
+              block:
+                - name: Remove packages on redhat
+                  ansible.builtin.yum:
+                    name: ['epel-release', 'docker', 'python-docker-py']
+                    state: absent
+
+                - name: Remove package dependencies on redhat
+                  ansible.builtin.command: yum -y autoremove  # noqa: command-instead-of-module
+                  changed_when: false
+
+                - name: Remove package dependencies on redhat again
+                  ansible.builtin.command: yum -y autoremove  # noqa: command-instead-of-module
+                  changed_when: false
+
+            - name: Dnf related tasks on red hat
+              when: ansible_facts['pkg_mgr'] == "dnf"
+              block:
+                - name: Remove docker on redhat
+                  ansible.builtin.dnf:
+                    name: ['docker', 'python3-docker']
+                    state: absent
+
+                - name: Remove package dependencies on redhat
+                  ansible.builtin.command: dnf -y autoremove
+                  changed_when: false
+
+                - name: Remove package dependencies on redhat again
+                  ansible.builtin.command: dnf -y autoremove
+                  changed_when: false
+
+        - name: Find any service-cid file left
+          ansible.builtin.find:
+            paths: /run
+            patterns:
+              - "ceph-*.service-cid"
+              - "node_exporter.service-cid"
+              - "prometheus.service-cid"
+              - "grafana-server.service-cid"
+              - "alertmanager.service-cid"
+          register: service_cid_files
+
+        - name: Rm any service-cid file
+          ansible.builtin.file:
+            path: "{{ item.path }}"
+            state: absent
+          with_items: "{{ service_cid_files.files }}"
+
+
+- name: Purge ceph directories
+  hosts:
+    - mons
+    - osds
+    - mdss
+    - rgws
+    - rbdmirrors
+    - nfss
+    - mgrs
+    - clients
+  gather_facts: false # Already gathered previously
+  become: true
+  tasks:
+    - name: Import ceph-defaults role
+      ansible.builtin.import_role:
+        name: ceph-defaults
+
+    - name: Purge ceph directories - containerized deployments
+      when: containerized_deployment | bool
+      block:
+        - name: Purge ceph directories and ceph socket
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          with_items:
+            - /etc/ceph
+            - /var/log/ceph
+            - /run/ceph
+            - "{{ ceph_osd_docker_run_script_path | default('/usr/share') }}/ceph-osd-run.sh"
+
+        - name: Remove ceph data
+          ansible.builtin.shell: rm -rf /var/lib/ceph/*  # noqa: no-free-form
+          changed_when: false
+
+        - name: Remove /var/lib/ceph
+          ansible.builtin.file:
+            path: /var/lib/ceph
+            state: absent
+
+        # (todo): remove this when we are able to manage docker
+        # service on atomic host.
+        - name: Remove docker data
+          ansible.builtin.shell: rm -rf /var/lib/docker/*  # noqa: no-free-form
+          changed_when: false
+          when: not is_atomic | bool
+          tags:
+            - remove_docker
+
+
+- name: Purge fetch directory
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Set fetch_directory value if not set
+      ansible.builtin.set_fact:
+        fetch_directory: "fetch/"
+      when: fetch_directory is not defined
+
+    - name: Purge fetch directory for localhost
+      ansible.builtin.file:
+        path: "{{ fetch_directory | default('fetch/') }}"
+        state: absent
