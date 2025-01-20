@@ -131,9 +131,7 @@ dashboard_protocol: http
 dashboard_admin_user: admin
 dashboard_admin_password: Str0ngAdminPassw0d
 grafana_admin_user: admin
-grafana_container_image: "grafana/grafana:latest"
 grafana_admin_password: Str0ngAdminPassw0d
-grafana_container_image: "grafana/grafana:latest"
 grafana_container_cpu_cores: 1
 grafana_container_memory: 1
 grafana_plugins:
