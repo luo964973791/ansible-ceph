@@ -39,7 +39,6 @@ ansible-galaxy collection install ansible.utils
 ansible-galaxy install -r requirements.yml
 pip3 install "cherrypy<9.0"
 pip3 install cryptography==3.3.2 pyOpenSSL==20.0.1
-pip3 install jaraco.functools==4.1.0
 #检查版本是否跟系统openssl兼容,需要注意有坑
 #！/usr/bin/env python3
 #!encoding: utf-8
@@ -172,9 +171,6 @@ ansible-playbook -i hosts site.yml -e container_package_name=docker-ce -e contai
 
 #报错一以及解决办法: AttributeError: module 'pkg_resources' has no attribute 'iter_entry_points'
 pip3 install --upgrade pip && pip3 install --upgrade setuptools && yum reinstall python3-setuptools -y
-
-#报错二以及解决办法: ImportError: cannot import name 'pass_none' from 'jaraco.functools'
-python3 -m pip install --no-cache-dir --upgrade jaraco.functools
 
 ceph crash archive-all
 ceph config set mon auth_allow_insecure_global_id_reclaim false  #HEALTH_WARN解决方法.
