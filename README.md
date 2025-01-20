@@ -33,6 +33,7 @@ git checkout stable-8.0
 yum install epel-release -y
 yum install -y git wget lrzsz tar yum-utils python3-pip python3-devel python3-setuptools
 pip3 install --upgrade pip && pip3 install --upgrade setuptools && yum reinstall python3-setuptools -y
+python3 -m pip install --no-cache-dir --upgrade jaraco.functools
 yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 pip3 install -r ./requirements.txt 
 ansible-galaxy collection install ansible.utils
@@ -171,6 +172,9 @@ ansible-playbook -i hosts site.yml -e container_package_name=docker-ce -e contai
 
 #报错一以及解决办法: AttributeError: module 'pkg_resources' has no attribute 'iter_entry_points'
 pip3 install --upgrade pip && pip3 install --upgrade setuptools && yum reinstall python3-setuptools -y
+
+#报错二以及解决办法: ImportError: cannot import name 'pass_none' from 'jaraco.functools'
+python3 -m pip install --no-cache-dir --upgrade jaraco.functools
 
 ceph crash archive-all
 ceph config set mon auth_allow_insecure_global_id_reclaim false  #HEALTH_WARN解决方法.
