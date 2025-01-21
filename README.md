@@ -115,7 +115,6 @@ client_group_name: clients
 mgr_group_name: mgrs
 rgwloadbalancer_group_name: rgwloadbalancers
 monitoring_group_name: monitoring
-cephx: true
 configure_firewall: False
 ntp_service_enabled: true
 ntp_daemon_type: chronyd
