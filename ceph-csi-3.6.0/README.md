@@ -6,7 +6,7 @@ rbd pool init kubernetes
 ceph auth get-or-create client.kubernetes mon 'profile rbd' osd 'profile rbd pool=kubernetes' mgr 'profile rbd pool=kubernetes'
 ceph auth get client.kubernetes
 ceph mon dump
-kubectl create ns ceph-csi
+kubectl create ns rbd-provisioner
 ```
 
 ### 二、rbd块存储创建csi-config-map
@@ -26,7 +26,7 @@ data:
     ]
 metadata:
   name: ceph-csi-config
-  namespace: ceph-csi
+  namespace: rbd-provisioner
 EOF
 
 kubectl apply -f csi-config-map.yaml
@@ -44,7 +44,7 @@ data:
     {}
 metadata:
   name: ceph-csi-encryption-kms-config
-  namespace: ceph-csi
+  namespace: rbd-provisioner
 EOF
 
 kubectl apply -f csi-kms-config-map.yaml
@@ -68,7 +68,7 @@ data:
   keyring: |
 metadata:
   name: ceph-config
-  namespace: ceph-csi
+  namespace: rbd-provisioner
 EOF
 
 kubectl apply -f ceph-config-map.yaml
@@ -84,7 +84,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: csi-rbd-secret
-  namespace: ceph-csi
+  namespace: rbd-provisioner
 stringData:
   userID: kubernetes
   userKey: AQBSocdjboeeLhAABFqGOe+I2v3jgtiPwyFbMQ==
@@ -102,8 +102,8 @@ wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/rbd/kubernete
 wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/rbd/kubernetes/csi-nodeplugin-rbac.yaml
 wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/rbd/kubernetes/csi-rbdplugin-provisioner.yaml
 wget https://raw.githubusercontent.com/ceph/ceph-csi/master/deploy/rbd/kubernetes/csi-rbdplugin.yaml
-sed -i "s/namespace: default/namespace: ceph-csi/g" $(grep -rl "namespace: default" ./)
-kubectl apply -f . -n ceph-csi
+sed -i "s/namespace: default/namespace: rbd-provisioner/g" $(grep -rl "namespace: default" ./)
+kubectl apply -f . -n rbd-provisioner
 ```
 
 ### 七、rbd块存储创建ceph pool
@@ -116,7 +116,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
    name: csi-rbd-sc
-   namespace: ceph-csi
+   namespace: rbd-provisioner
    annotations:
      storageclass.beta.kubernetes.io/is-default-class: "true"
      storageclass.kubesphere.io/supported-access-modes: '["ReadWriteOnce","ReadOnlyMany","ReadWriteMany"]'
@@ -190,7 +190,7 @@ data:
     ]
 metadata:
   name: ceph-csi-config
-  namespace: ceph-csi
+  namespace: rbd-provisioner
 EOF
 
 kubectl apply -f csi-config-map.yaml
@@ -208,7 +208,7 @@ data:
     {}
 metadata:
   name: ceph-csi-encryption-kms-config
-  namespace: ceph-csi
+  namespace: rbd-provisioner
 EOF
 
 kubectl apply -f csi-kms-config-map.yaml
@@ -232,7 +232,7 @@ data:
   keyring: |
 metadata:
   name: ceph-config
-  namespace: ceph-csi
+  namespace: rbd-provisioner
 EOF
 
 kubectl apply -f ceph-config-map.yaml
@@ -247,7 +247,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: csi-cephfs-secret
-  namespace: ceph-csi
+  namespace: rbd-provisioner
 stringData:
   # 通过ceph auth get client.admin查看
   # Required for statically provisioned volumes
