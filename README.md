@@ -121,6 +121,7 @@ mgr_group_name: mgrs
 rgwloadbalancer_group_name: rgwloadbalancers
 monitoring_group_name: monitoring
 configure_firewall: False
+cephx: true
 ntp_service_enabled: true
 ntp_daemon_type: chronyd
 public_network: "172.27.0.0/24" 
