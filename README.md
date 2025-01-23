@@ -133,6 +133,9 @@ radosgw_interface: eth0
 dashboard_enabled: True
 dashboard_protocol: http
 dashboard_admin_user: admin
+node_exporter_container_image: "docker.io/prom/node-exporter:v0.17.0"
+grafana_container_image: "grafana/grafana:9.2.1"
+prometheus_container_image: "prom/prometheus:v2.39.1"
 dashboard_admin_password: Str0ngAdminPassw0d
 grafana_admin_user: admin
 grafana_admin_password: Str0ngAdminPassw0d
